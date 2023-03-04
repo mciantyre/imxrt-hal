@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+**BREAKING** Remove deprecated APIs
+
+- `clko2::Selection::TracClk`
+- `timer::*PitChan`
+- `lpspi::Disabled::{set_mode, set_watermark}`
+
 ## [0.5.5] 2024-05-27
 
 Add embedded-hal 1 implementations for the following drivers:

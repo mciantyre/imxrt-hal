@@ -517,7 +517,7 @@ impl<P, const N: u8> Lpspi<P, N> {
     /// The handle to a [`Disabled`](crate::lpspi::Disabled) driver lets you modify
     /// LPSPI settings that require a fully disabled peripheral.
     pub fn disabled<R>(&mut self, func: impl FnOnce(&mut Disabled<N>) -> R) -> R {
-        let mut disabled = Disabled::new(&mut self.lpspi, &mut self.mode);
+        let mut disabled = Disabled::new(&mut self.lpspi);
         func(&mut disabled)
     }
 
@@ -1080,12 +1080,11 @@ fn set_watermark(lpspi: &ral::lpspi::RegisterBlock, direction: Direction, waterm
 /// An LPSPI peripheral which is temporarily disabled.
 pub struct Disabled<'a, const N: u8> {
     lpspi: &'a ral::lpspi::Instance<N>,
-    mode: &'a mut Mode,
     men: bool,
 }
 
 impl<'a, const N: u8> Disabled<'a, N> {
-    fn new(lpspi: &'a mut ral::lpspi::Instance<N>, mode: &'a mut Mode) -> Self {
+    fn new(lpspi: &'a mut ral::lpspi::Instance<N>) -> Self {
         let men = ral::read_reg!(ral::lpspi, lpspi, CR, MEN == MEN_1);
 
         // Request disable
@@ -1093,16 +1092,7 @@ impl<'a, const N: u8> Disabled<'a, N> {
         // Wait for the driver to finish its current transfer
         // and enter disabled state
         while ral::read_reg!(ral::lpspi, lpspi, CR, MEN == MEN_1) {}
-        Self { lpspi, mode, men }
-    }
-
-    /// Set the SPI mode for the peripheral
-    #[deprecated(
-        since = "0.5.5",
-        note = "Use Lpspi::set_mode to change modes while enabled."
-    )]
-    pub fn set_mode(&mut self, mode: Mode) {
-        *self.mode = mode;
+        Self { lpspi, men }
     }
 
     /// Set the LPSPI clock speed (Hz).
@@ -1111,25 +1101,6 @@ impl<'a, const N: u8> Disabled<'a, N> {
     /// peripheral clock, see the [`ccm::lpspi_clk`](crate::ccm::lpspi_clk) documentation.
     pub fn set_clock_hz(&mut self, source_clock_hz: u32, clock_hz: u32) {
         set_spi_clock(source_clock_hz, clock_hz, self.lpspi);
-    }
-
-    /// Set the watermark level for a given direction.
-    ///
-    /// Returns the watermark level committed to the hardware. This may be different
-    /// than the supplied `watermark`, since it's limited by the hardware.
-    ///
-    /// When `direction == Direction::Rx`, the receive data flag is set whenever the
-    /// number of words in the receive FIFO is greater than `watermark`.
-    ///
-    /// When `direction == Direction::Tx`, the transmit data flag is set whenever the
-    /// the number of words in the transmit FIFO is less than, or equal, to `watermark`.
-    #[inline]
-    #[deprecated(
-        since = "0.5.5",
-        note = "Use Lpspi::set_watermark to change watermark while enabled"
-    )]
-    pub fn set_watermark(&mut self, direction: Direction, watermark: u8) -> u8 {
-        set_watermark(self.lpspi, direction, watermark)
     }
 
     /// Set the sampling point of the LPSPI peripheral.
