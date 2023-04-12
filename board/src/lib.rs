@@ -46,6 +46,8 @@ mod board_impl;
 #[path = "imxrt1170evk-cm7.rs"]
 mod board_impl;
 
+#[cfg(feature = "usdhc")]
+pub use embedded_sdmmc as sdmmc;
 #[cfg(feature = "lcd1602")]
 pub use lcd_1602_i2c as lcd1602;
 
@@ -85,6 +87,9 @@ pub struct Common {
     pub usbnc1: UsbNc1,
     /// USBPHY1 registers.
     pub usbphy1: UsbPhy1,
+    /// USDHC peripheral.
+    #[cfg(feature = "usdhc")]
+    pub usdhc: hal::usdhc::Usdhc,
 }
 
 impl Common {
@@ -122,6 +127,8 @@ impl Common {
             usb1: unsafe { Usb1::instance() },
             usbnc1: unsafe { UsbNc1::instance() },
             usbphy1: unsafe { UsbPhy1::instance() },
+            #[cfg(feature = "usdhc")]
+            usdhc: hal::usdhc::from_instance(unsafe { UsdhcInstance::instance() }),
         }
     }
 }

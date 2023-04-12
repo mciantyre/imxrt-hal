@@ -16,7 +16,7 @@ use panic_rtt_target as _;
 /// You'll find log messages using the serial console, through the DAP.
 pub(crate) const DEFAULT_LOGGING_BACKEND: crate::logging::Backend = crate::logging::Backend::Lpuart;
 
-use hal::ccm::clock_gate;
+use hal::{ccm::clock_gate, usdhc::SDRPrescaler};
 const CLOCK_GATES: &[clock_gate::Locator] = &[
     clock_gate::gpio(),
     clock_gate::dma(),
@@ -29,6 +29,7 @@ const CLOCK_GATES: &[clock_gate::Locator] = &[
     clock_gate::flexpwm::<{ PWM_INSTANCE }>(),
     clock_gate::lpi2c::<{ I2C_INSTANCE }>(),
     clock_gate::snvs(),
+    clock_gate::usdhc::<USDHC_INSTANCE>(),
 ];
 
 pub(crate) unsafe fn configure() {
@@ -47,6 +48,7 @@ fn prepare_clock_tree(ccm: &mut ral::ccm::CCM) {
     clock_tree::configure_lpuart::<{ CONSOLE_INSTANCE }>(RUN_MODE, ccm);
     clock_tree::configure_lpspi::<SPI_INSTANCE>(RUN_MODE, ccm);
     clock_tree::configure_lpi2c::<{ I2C_INSTANCE }>(RUN_MODE, ccm);
+    clock_tree::configure_usdhc::<USDHC_INSTANCE>(RUN_MODE, ccm);
 }
 
 pub const PIT_FREQUENCY: u32 = clock_tree::bus_frequency(RUN_MODE);
@@ -58,6 +60,11 @@ pub const LPSPI_CLK_FREQUENCY: u32 = clock_tree::lpspi_frequency::<SPI_INSTANCE>
 pub const LPI2C_CLK_FREQUENCY: u32 = clock_tree::lpi2c_frequency::<I2C_INSTANCE>(RUN_MODE);
 pub const PWM_PRESCALER: hal::flexpwm::Prescaler = hal::flexpwm::Prescaler::Prescaler8;
 pub const PWM_FREQUENCY: u32 = clock_tree::bus_frequency(RUN_MODE) / PWM_PRESCALER.divider();
+
+const USDHC_DIVIDER: u8 = 16;
+pub const USDHC_FREQUENCY: u32 =
+    clock_tree::usdhc_frequency::<USDHC_INSTANCE>(RUN_MODE) / USDHC_DIVIDER as u32;
+const _: () = assert!(USDHC_FREQUENCY < 400_000);
 
 pub type Led = hal::gpio::Output<iomuxc::gpio_ad::GPIO_AD_04>;
 
@@ -125,6 +132,101 @@ pub mod pwm {
     pub type Outputs = ();
 }
 
+const USDHC_INSTANCE: u8 = 1;
+pub(crate) type UsdhcInstance = ral::usdhc::Instance<USDHC_INSTANCE>;
+
+/// Prepare the uSDHC pins for this board.
+fn prepare_usdhc_pins(iomuxc: &ral::iomuxc::IOMUXC) {
+    // CMD
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_MUX_CTL_PAD_GPIO_SD_B1_00, MUX_MODE: 0, SION: 1);
+    ral::write_reg!(
+        ral::iomuxc,
+        iomuxc,
+        SW_PAD_CTL_PAD_GPIO_SD_B1_00,
+        PULL: PULL_1_PU
+    );
+    // CLK
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_MUX_CTL_PAD_GPIO_SD_B1_01, MUX_MODE: 0);
+    ral::write_reg!(
+        ral::iomuxc,
+        iomuxc,
+        SW_PAD_CTL_PAD_GPIO_SD_B1_01,
+        PULL: PULL_1_PU
+    );
+    // DATA0
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_MUX_CTL_PAD_GPIO_SD_B1_02, MUX_MODE: 0, SION: 1);
+    ral::write_reg!(
+        ral::iomuxc,
+        iomuxc,
+        SW_PAD_CTL_PAD_GPIO_SD_B1_02,
+        PULL: PULL_1_PU
+    );
+    // DATA1
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_MUX_CTL_PAD_GPIO_SD_B1_03, MUX_MODE: 0, SION: 1);
+    ral::write_reg!(
+        ral::iomuxc,
+        iomuxc,
+        SW_PAD_CTL_PAD_GPIO_SD_B1_03,
+        PULL: PULL_1_PU
+    );
+    // DATA2
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_MUX_CTL_PAD_GPIO_SD_B1_04, MUX_MODE: 0, SION: 1);
+    ral::write_reg!(
+        ral::iomuxc,
+        iomuxc,
+        SW_PAD_CTL_PAD_GPIO_SD_B1_04,
+        PULL: PULL_1_PU
+    );
+    // DATA3
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_MUX_CTL_PAD_GPIO_SD_B1_05, MUX_MODE: 0, SION: 1);
+    ral::write_reg!(
+        ral::iomuxc,
+        iomuxc,
+        SW_PAD_CTL_PAD_GPIO_SD_B1_05,
+        PULL: PULL_1_PU
+    );
+    // CD_B
+    // Note: this isn't connected on the stock board.
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_MUX_CTL_PAD_GPIO_AD_32, MUX_MODE: 4);
+    ral::write_reg!(
+        ral::iomuxc,
+        iomuxc,
+        SW_PAD_CTL_PAD_GPIO_AD_32,
+        PUE: PUE_1_PULL_ENABLE,
+        PUS: PUS_0_WEAK_PULL_DOWN,
+        DSE: DSE_1_HIGH_DRIVER
+    );
+    // VSELECT
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_MUX_CTL_PAD_GPIO_AD_34, MUX_MODE: 4);
+    ral::write_reg!(
+        ral::iomuxc,
+        iomuxc,
+        SW_PAD_CTL_PAD_GPIO_AD_34,
+        PUE: PUE_1_PULL_ENABLE,
+        PUS: PUS_0_WEAK_PULL_DOWN,
+        DSE: DSE_1_HIGH_DRIVER
+    );
+    // RESET_B
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_MUX_CTL_PAD_GPIO_AD_35, MUX_MODE: 4);
+    ral::write_reg!(
+        ral::iomuxc,
+        iomuxc,
+        SW_PAD_CTL_PAD_GPIO_AD_35,
+        DSE: DSE_1_HIGH_DRIVER,
+        PUE: PUE_1_PULL_ENABLE,
+        PUS: PUS_1_WEAK_PULL_UP
+    );
+    // WP (tied low, as recommended when not used).
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_MUX_CTL_PAD_GPIO_AD_33, MUX_MODE: 4);
+    ral::write_reg!(
+        ral::iomuxc,
+        iomuxc,
+        SW_PAD_CTL_PAD_GPIO_AD_33,
+        PUE: PUE_1_PULL_ENABLE,
+        PUS: PUS_0_WEAK_PULL_DOWN
+    );
+}
+
 /// The board's PWM components.
 pub struct Pwm {
     /// Core PWM peripheral.
@@ -175,6 +277,7 @@ impl Specifics {
         let button = hal::gpio::Input::without_pin(&mut gpio13, 0);
 
         let iomuxc = unsafe { ral::iomuxc::IOMUXC::instance() };
+        prepare_usdhc_pins(&iomuxc);
         let mut iomuxc = super::convert_iomuxc(iomuxc);
         configure_pins(&mut iomuxc);
 
@@ -246,6 +349,14 @@ impl Specifics {
                 &super::I2C_BAUD_RATE,
             )
         };
+
+        common
+            .usdhc
+            .set_data_transfer_width(hal::usdhc::DataTransferWidth::Bit1);
+        common.usdhc.set_timing(hal::usdhc::Timing {
+            divisor: USDHC_DIVIDER,
+            data_rate: hal::usdhc::DataRate::SingleDataRate(SDRPrescaler::Divide1),
+        });
 
         Self {
             led,

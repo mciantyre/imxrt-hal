@@ -52,6 +52,10 @@ version = "0.2"
 version = "0.3"
 optional = true
 
+[dependencies.embedded-sdmmc]
+version = "0.4"
+optional = true
+
 [target.thumbv7em-none-eabihf.dependencies.rtt-target]
 version = "0.3"
 optional = true
@@ -109,6 +113,7 @@ imxrt1170evk-cm7 = [
     "rtt-target",
     "panic-rtt-target",
     "imxrt-log",
+    "usdhc",
 ]
 
 # Some boards (Teensy 4) require a resource
@@ -118,5 +123,6 @@ imxrt1170evk-cm7 = [
 #
 # See board-specific documentation for its effects.
 spi = []
+usdhc = ["dep:embedded-sdmmc"]
 
 lcd1602 = ["dep:lcd_1602_i2c"]

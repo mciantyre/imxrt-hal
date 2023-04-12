@@ -188,3 +188,11 @@ where
 pub const fn snvs() -> Locator {
     Locator::new(38)
 }
+
+/// Returns the uSDHC clock gate locator.
+#[inline(always)]
+pub const fn usdhc<const N: u8>() -> Locator {
+    // uSDHC1 -> LPCG117
+    // uSDHC2 -> LPCG118
+    Locator::new(N as usize + 116)
+}

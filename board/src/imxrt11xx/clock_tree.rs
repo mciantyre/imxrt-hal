@@ -67,12 +67,12 @@ impl ClockSource {
 struct Selection {
     mux: u32,
     source: ClockSource,
-    divider: u32,
+    divider: u8,
 }
 
 impl Selection {
     const fn frequency(self, run_mode: RunMode) -> u32 {
-        self.source.frequency(run_mode) / self.divider
+        self.source.frequency(run_mode) / self.divider as u32
     }
 }
 
@@ -97,7 +97,7 @@ const _: () = assert!(bus_frequency(RunMode::Overdrive) == 200_000_000); // 240M
 fn configure_clock_root(offset: usize, selection: &Selection, ccm: &mut CCM) {
     let clock_root = &ccm.CLOCK_ROOT[offset];
     ral::modify_reg!(ral::ccm::clockroot, clock_root, CLOCK_ROOT_CONTROL,
-        DIV: selection.divider - 1,
+        DIV: selection.divider.saturating_sub(1) as u32,
         MUX: selection.mux);
     while ral::read_reg!(
         ral::ccm::clockroot,
@@ -262,4 +262,40 @@ where
     // LPSPI1 -> CLOCK_ROOT43
     // LPSPI6 -> CLOCK_ROOT48
     configure_clock_root(N as usize + 42, &lpspi_selection::<N>(run_mode), ccm);
+}
+
+const fn usdhc_selection<const N: u8>(run_mode: RunMode) -> Selection {
+    match run_mode {
+        RunMode::Overdrive => Selection {
+            mux: 0b0101,
+            source: ClockSource::RcOsc400MHz,
+            divider: 100,
+        },
+    }
+}
+
+/// Returns the target uSDHC clock frequency for the run mode.
+pub const fn usdhc_frequency<const N: u8>(run_mode: RunMode) -> u32
+where
+    ral::usdhc::Instance<N>: ral::Valid,
+{
+    usdhc_selection::<N>(run_mode).frequency(run_mode)
+}
+
+const _: () = assert!(usdhc_frequency::<1>(RunMode::Overdrive) == 4_000_000);
+
+/// Set the uSDHC clock configuration.
+///
+/// When this call returns, the uSDHCn clock frequency matches the value
+/// returned by [`usdhc_frequency`].
+///
+/// This function may disable clock gates for various peripherals. It may leave
+/// these clock gates disabled.
+pub fn configure_usdhc<const N: u8>(run_mode: RunMode, ccm: &mut CCM)
+where
+    ral::usdhc::Instance<N>: ral::Valid,
+{
+    // uSDHC1 -> CLOCK_ROOT58
+    // uSDHC2 -> CLOCK_ROOT59
+    configure_clock_root(N as usize + 57, &usdhc_selection::<N>(run_mode), ccm);
 }

@@ -270,6 +270,24 @@ pub mod usbd {
     }
 }
 
+/// uSDHC host controller.
+///
+/// Use [`from_instance()`] to safely create the low-level uSDHC driver, [`Usdhc`].
+#[cfg(feature = "imxrt-usdhc")]
+pub mod usdhc {
+    pub use imxrt_usdhc::*;
+
+    /// Convert the uSDHC instance to the low-level uSDHC driver.
+    pub fn from_instance<const N: u8>(instance: crate::ral::usdhc::Instance<N>) -> Usdhc {
+        // Safety: the instance points to a valid instance.
+        // The user who constructed the `instance` is responsible for ensuring
+        // that this instance isn't used elsewhere.
+        unsafe {
+            Usdhc::new(&*instance as &crate::ral::usdhc::RegisterBlock as *const _ as *const ())
+        }
+    }
+}
+
 /// Pad muxing and configurations.
 ///
 /// This module re-exports select items from the `imxrt-iomuxc` crate. When a chip feature is enabled, the module also exports
