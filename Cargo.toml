@@ -128,6 +128,7 @@ cortex-m = "0.7"
 imxrt-rt = { workspace = true }
 menu = "0.3.2"
 cortex-m-rtic = "1.0"
+linked_list_allocator = "0.10"
 log = "0.4"
 defmt = "0.3"
 pin-utils = "0.1"
