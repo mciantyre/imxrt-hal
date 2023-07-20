@@ -15,6 +15,7 @@ mod frontend;
 
 pub use filters::Filter;
 use filters::Filters;
+pub use frontend::write_raw;
 
 use crate::{Poller, BUFFER};
 

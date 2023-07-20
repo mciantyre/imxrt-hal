@@ -284,12 +284,19 @@ pub enum Interrupts {
 fn try_write_producer<const N: usize>(
     buffer: &[u8],
     producer: &mut bbqueue::Producer<'_, N>,
-) -> Result<(), bbqueue::Error> {
+) -> Result<usize, bbqueue::Error> {
     fn write_grant<'a, const N: usize>(
         bytes: &'a [u8],
         prod: &mut bbqueue::Producer<'_, N>,
     ) -> Result<&'a [u8], bbqueue::Error> {
-        let mut grant = prod.grant_max_remaining(bytes.len())?;
+        let mut grant = match prod.grant_max_remaining(bytes.len()) {
+            Ok(grant) => grant,
+            Err(bbqueue::Error::InsufficientSize) => return Ok(bytes),
+            // Never returned by this call.
+            Err(bbqueue::Error::AlreadySplit) => unreachable!(),
+            // Grant scope is revealed in this function, so we know it's not in progress.
+            Err(bbqueue::Error::GrantInProgress) => unreachable!(),
+        };
         let grant_len = grant.len();
         grant.copy_from_slice(&bytes[..grant_len]);
         grant.commit(grant_len);
@@ -298,16 +305,17 @@ fn try_write_producer<const N: usize>(
 
     // Either (1) write all of s into the buffer, (2) fill up the back of the buffer,
     // or (3) fill up as much as you can until you hit old data.
-    let buffer = write_grant::<N>(buffer, producer)?;
+    let remaining = write_grant::<N>(buffer, producer)?;
+    let mut unwritten: &[u8] = &[];
 
     // Non-empty for (2) and (3).
-    if !buffer.is_empty() {
+    if !remaining.is_empty() {
         // This could either fail, or the grant could be smaller than the (remaining)
         // string. In the latter case, we drop data.
-        write_grant::<N>(buffer, producer)?;
+        unwritten = write_grant::<N>(remaining, producer)?;
     }
 
-    Ok(())
+    Ok(buffer.len() - unwritten.len())
 }
 
 /// An error indicating the logger is already set.
@@ -394,7 +402,7 @@ mod tests {
     fn write_producer_simple() {
         let bb = BBBuffer::<4>::new();
         let (mut prod, mut cons) = bb.try_split().unwrap();
-        try_write_producer(&[1, 2, 3], &mut prod).unwrap();
+        assert_eq!(3, try_write_producer(&[1, 2, 3], &mut prod).unwrap());
         assert_eq!(cons.read().unwrap().buf(), &[1, 2, 3]);
     }
 
@@ -404,7 +412,7 @@ mod tests {
         let (mut prod, mut cons) = bb.try_split().unwrap();
         prod.grant_exact(2).unwrap().commit(2);
         cons.read().unwrap().release(1);
-        assert!(try_write_producer(&[1, 2, 3, 4], &mut prod).is_err());
+        assert_eq!(3, try_write_producer(&[1, 2, 3, 4], &mut prod).unwrap());
         assert_eq!(cons.read().unwrap().buf(), &[0, 1, 2, 3]);
     }
 
@@ -414,7 +422,7 @@ mod tests {
         let (mut prod, mut cons) = bb.try_split().unwrap();
         prod.grant_exact(3).unwrap().commit(3);
         cons.read().unwrap().release(2);
-        try_write_producer(&[1, 2, 3, 4], &mut prod).unwrap();
+        assert_eq!(3, try_write_producer(&[1, 2, 3, 4], &mut prod).unwrap());
         let grant = cons.split_read().unwrap();
         let (bck, fnt) = grant.bufs();
         assert_eq!(bck, &[0, 1, 2]);

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+Add `write_raw` function in the logging front-end to support custom logging.
+
 ## [0.1.1] 2023-03-14
 
 Read the bulk OUT endpoint in the USB device logger. This resolves some poor
