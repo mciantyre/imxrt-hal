@@ -404,7 +404,7 @@ pub mod lpspi_clk {
     }
 }
 
-macro_rules! flexio_mod {
+macro_rules! ccm_flexio {
     (
         $name:ident, $desc:literal,
         divider: ($divider_reg:ident, $divider_field:ident),
@@ -493,27 +493,3 @@ macro_rules! flexio_mod {
         }
     };
 }
-
-#[cfg(any(feature = "imxrt1010", feature = "imxrt1020"))]
-flexio_mod!(
-    flexio1_clk, "FLEXIO1",
-    divider: (CS1CDR, FLEXIO1_CLK_PODF),
-    predivider: (CS1CDR, FLEXIO1_CLK_PRED),
-    selection: (CSCMR2, FLEXIO1_CLK_SEL),
-);
-
-#[cfg(any(feature = "imxrt1060", feature = "imxrt1064"))]
-flexio_mod!(
-    flexio1_clk, "FLEXIO1",
-    divider: (CDCDR, FLEXIO1_CLK_PODF),
-    predivider: (CDCDR, FLEXIO1_CLK_PRED),
-    selection: (CDCDR, FLEXIO1_CLK_SEL),
-);
-
-#[cfg(any(feature = "imxrt1060", feature = "imxrt1064"))]
-flexio_mod!(
-    flexio2_clk, "FLEXIO2",
-    divider: (CS1CDR, FLEXIO2_CLK_PODF),
-    predivider: (CS1CDR, FLEXIO2_CLK_PRED),
-    selection: (CSCMR2, FLEXIO2_CLK_SEL),
-);
