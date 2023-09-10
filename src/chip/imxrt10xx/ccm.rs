@@ -465,9 +465,18 @@ macro_rules! ccm_flexio {
                 Pll4 = 0,
                 /// Derive from PLL3_PFD2.
                 Pll3Pfd2 = 1,
-                #[cfg(feature = "imxrt1060")]
+
+                #[cfg(any(feature = "imxrt1060", feature = "imxrt1064"))]
                 /// Derive from PLL5.
                 Pll5 = 2,
+                #[cfg(feature = "imxrt1010")]
+                /// Derive from PLL2.
+                Pll2 = 2,
+
+                //
+                // '2' reserved on 1020.
+                //
+
                 /// Derive from pll3_sw_clk.
                 Pll3SwClk = 3,
             }
@@ -478,8 +487,10 @@ macro_rules! ccm_flexio {
                 match ral::read_reg!(ral::ccm, ccm, $sel_reg, $sel_field) {
                     0 => Selection::Pll4,
                     1 => Selection::Pll3Pfd2,
-                    #[cfg(feature = "imxrt1060")]
+                    #[cfg(any(feature = "imxrt1060", feature = "imxrt1064"))]
                     2 => Selection::Pll5,
+                    #[cfg(feature = "imxrt1010")]
+                    2 => Selection::Pll2,
                     3 => Selection::Pll3SwClk,
                     _ => unreachable!(),
                 }
