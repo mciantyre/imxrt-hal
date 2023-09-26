@@ -86,6 +86,7 @@ members = [
 ]
 
 [workspace.dependencies]
+cxx-pit = { path = "cxx-pit" }
 imxrt-dma = "0.1"
 imxrt-iomuxc = "0.2.1"
 imxrt-hal = { version = "0.5", path = "." }
@@ -102,7 +103,7 @@ license = "MIT OR Apache-2.0"
 edition = "2021"
 
 [profile.dev]
-opt-level = 1
+opt-level = 0
 panic = "abort"
 
 [profile.release]

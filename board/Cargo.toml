@@ -5,6 +5,9 @@ edition = { workspace = true }
 # Only for testing, documentation.
 publish = false
 
+[dependencies.cxx-pit]
+workspace = true
+
 [dependencies.defmt]
 version = "0.3"
 

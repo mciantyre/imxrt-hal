@@ -11,12 +11,12 @@ const DELAY_MS: u32 = board::PIT_FREQUENCY / 1_000 * 250;
 fn main() -> ! {
     let (board::Common { mut pit, .. }, board::Specifics { led, .. }) = board::new();
 
-    pit.0.set_load_timer_value(DELAY_MS);
-    pit.0.enable();
+    pit[0].as_ref().set_load_timer_value(DELAY_MS);
+    pit[0].as_mut().enable();
 
     loop {
-        while !pit.0.is_elapsed() {}
-        pit.0.clear_elapsed();
+        while !pit[0].as_ref().is_elapsed() {}
+        pit[0].as_ref().clear_elapsed();
         led.toggle();
     }
 }

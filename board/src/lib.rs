@@ -60,7 +60,7 @@ pub use board_impl::*;
 /// that don't necessarily depend on a pinout.
 pub struct Common {
     /// PIT channels.
-    pub pit: hal::pit::Channels,
+    pub pit: cxx_pit::Channels,
     /// GPT1 timer.
     ///
     /// Use [`GPT1_FREQUENCY`] to understand its frequency.
@@ -93,7 +93,7 @@ impl Common {
         let pit: Pit = unsafe { Pit::instance() };
         // Stop timers in debug mode.
         ral::modify_reg!(ral::pit, pit, MCR, FRZ: FRZ_1);
-        let pit = hal::pit::new(pit);
+        let pit = cxx_pit::new(pit);
 
         let gpt1 = configure_gpt(unsafe { ral::gpt::GPT1::instance() }, GPT1_DIVIDER);
         let gpt2 = configure_gpt(unsafe { ral::gpt::GPT2::instance() }, GPT2_DIVIDER);

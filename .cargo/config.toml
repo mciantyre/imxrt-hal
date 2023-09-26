@@ -1,7 +1,13 @@
 [target.thumbv7em-none-eabihf]
+linker = "arm-none-eabi-g++"
 rustflags = [
     "-C", "link-arg=-Timxrt-link.x",
     "-C", "link-arg=-Tdefmt.x",
     "-C", "link-arg=-Tdevice.x",
-    "-C", "link-arg=-error-limit=0",
+    "-C", "link-arg=-mcpu=cortex-m7",
+    "-C", "link-arg=-mfloat-abi=hard",
+    "-C", "link-arg=-mfpu=fpv5-d16",
+    "-C", "link-arg=-nostartfiles",
+    "-C", "link-arg=--specs=nano.specs",
+    "--cfg", "cxx_experimental_no_alloc",
 ]
