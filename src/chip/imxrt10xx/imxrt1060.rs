@@ -58,6 +58,13 @@ pub(crate) mod ccm {
             clock_gate::lpspi::<4>(),
         ];
 
+        /// All SAI clock gates.
+        pub const SAI_CLOCK_GATES: &[clock_gate::Locator] = &[
+            clock_gate::sai::<1>(),
+            clock_gate::sai::<2>(),
+            clock_gate::sai::<3>(),
+        ];
+
         /// All clock gates downstream of the LPI2C root clock.
         pub const LPI2C_CLOCK_GATES: &[clock_gate::Locator] = &[
             clock_gate::lpi2c::<1>(),

@@ -162,6 +162,22 @@ pub fn configure_uart(run_mode: RunMode, ccm: &mut CCM) {
     uart_clk::set_divider(ccm, uart_divider(run_mode));
 }
 
+/// Configure the SAI root clock.
+///
+/// When this call returns, the SAI clock frequency match the values
+/// returned by the [`sai_frequency()`] function.
+///
+/// This function will disable the clock gates for various peripherals. It
+/// may leave these clock gates disabled.
+pub fn configure_sai(run_mode: RunMode, ccm: &mut CCM) {
+    clock_gate::SAI_CLOCK_GATES
+        .iter()
+        .for_each(|locator| locator.set(ccm, clock_gate::OFF));
+    //TODO sai_clk::set_selection(ccm, sai_selection(run_mode));
+    //TODO sai_clk::set_prediv(ccm, sai_prediv(run_mode));
+    //TODO sai_clk::set_divider(ccm, sai_divider(run_mode));
+}
+
 /// Configure the LPI2C root clock.
 ///
 /// When this call returns, the LPI2C clock frequency match the values

@@ -40,6 +40,7 @@ fn prepare_clock_tree(
     clock_tree::configure_lpspi(RUN_MODE, ccm);
     clock_tree::configure_perclk(RUN_MODE, ccm);
     clock_tree::configure_uart(RUN_MODE, ccm);
+    clock_tree::configure_sai(RUN_MODE, ccm);
     ccm::analog::pll3::restart(ccm_analog);
 }
 
@@ -53,6 +54,9 @@ const COMMON_CLOCK_GATES: &[clock_gate::Locator] = &[
     clock_gate::dma(),
     clock_gate::usb(),
     clock_gate::trng(),
+    clock_gate::sai::<1>(),
+    clock_gate::sai::<2>(), //TODO not every part has SAI2!
+    clock_gate::sai::<3>(),
     clock_gate::snvs_lp(),
     clock_gate::snvs_hp(),
 ];

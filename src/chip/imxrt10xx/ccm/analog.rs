@@ -65,3 +65,85 @@ pub mod pll3 {
         }
     }
 }
+/// The Audio PLL
+pub mod pll4 {
+
+    /// The smallest PLL4_PFD divider.
+    pub const MIN_FRAC: u8 = 12;
+    /// The largest PLL4_PFD divider.
+    pub const MAX_FRAC: u8 = 35;
+
+    use crate::{common::ccm, ral};
+
+    /// Restart the Audio PLL where all numerical options are enforced at build time.
+    pub fn restart(
+        ccm_analog: &mut ral::ccm_analog::CCM_ANALOG,
+        div_select: u32,
+        pll_num: u32,
+        pll_denom: u32,
+    ) {
+        assert!(
+            div_select >= 27 && div_select <= 54,
+            "Audio PLL divider selection must be in range from 27 to 54 inclusive"
+        );
+        assert!(
+            pll_num < pll_denom,
+            "PLL requires numerator be less than the denominator"
+        );
+        let out_freq: u32 =
+            ccm::XTAL_OSCILLATOR_HZ * div_select + (ccm::XTAL_OSCILLATOR_HZ * pll_num) / pll_denom;
+        assert!(
+            out_freq > 650_000_000 && out_freq <= 1_300_000_000,
+            "Maximum PLL4 output range is from 650MHz to 1.3GHz"
+        );
+        // disable and power down pll
+        loop {
+            if ral::read_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO, BYPASS == 0) {
+                ral::write_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO_SET, BYPASS: 1);
+                continue;
+            }
+            if ral::read_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO, ENABLE == 1) {
+                ral::write_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO_CLR, ENABLE: 1);
+                continue;
+            }
+            if ral::read_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO, POWERDOWN == 0) {
+                ral::write_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO_SET, POWERDOWN: 1);
+                continue;
+            }
+            break;
+        }
+
+        // set div_select, num, denom
+        ral::write_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO_NUM, pll_num);
+        ral::write_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO_DENOM, pll_denom);
+        ral::write_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO, DIV_SELECT: div_select);
+
+        // power on, enable, and lock, but leave bypassed
+        loop {
+            if ral::read_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO, ENABLE == 0) {
+                ral::write_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO_SET, ENABLE: 1);
+                continue;
+            }
+            if ral::read_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO, POWERDOWN == 1) {
+                ral::write_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO_CLR, POWERDOWN: 1);
+                continue;
+            }
+            if ral::read_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO, LOCK == 0) {
+                continue;
+            }
+            if ral::read_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO, BYPASS == 1) {
+                ral::write_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO_CLR, BYPASS: 1);
+                continue;
+            }
+            break;
+        }
+    }
+
+    /// Get the current clock rate for the Audio PLL by inspecting the dividers
+    pub fn clock_rate(ccm_analog: &ral::ccm_analog::CCM_ANALOG) -> u32 {
+        let div_select: u32 = ral::read_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO, DIV_SELECT);
+        let pll_num: u32 = ral::read_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO_NUM);
+        let pll_denom: u32 = ral::read_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO_DENOM);
+        ccm::XTAL_OSCILLATOR_HZ * div_select + (ccm::XTAL_OSCILLATOR_HZ * pll_num) / pll_denom
+    }
+}

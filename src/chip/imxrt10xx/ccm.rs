@@ -403,3 +403,111 @@ pub mod lpspi_clk {
         ral::modify_reg!(ral::ccm, ccm, CBCMR, LPSPI_CLK_SEL: selection as u32);
     }
 }
+
+/// SAI clock root.
+///
+/// `sai_clk` provides the clock source for each SAI peripheral.
+/// You must disable SAI clock gates before selecting the clock
+/// and divider.
+///
+/// # Example
+///
+/// ```no_run
+/// use imxrt_hal as hal;
+/// use hal::ccm::{sai_clk, clock_gate};
+/// use hal::ccm::analog::pll4;
+///
+/// use imxrt_ral as ral;
+///
+/// const SAI_CLK_DIVIDER: u32 = 8;
+///
+/// # fn opt() -> Option<()> {
+/// let mut ccm = unsafe { ral::ccm::CCM::instance() };
+/// clock_gate::sai::<1>().set(&mut ccm, clock_gate::OFF);
+/// sai_clk::set_selection::<1>(&mut ccm, sai_clk::Selection::Pll4);
+/// sai_clk::set_divider::<1>(&mut ccm, SAI_CLK_DIVIDER);
+///
+/// clock_gate::sai::<1>().set(&mut ccm, clock_gate::ON);
+/// let const sai_clk_hz: u32 = pll4::clock_frequency() / SAI_CLK_DIVIDER;
+///
+/// # Some(()) }
+/// ```
+pub mod sai_clk {
+    use crate::ral::{self, ccm::CCM};
+
+    /// Returns the SAI<N> clock divider.
+    #[inline(always)]
+    #[cfg(not(feature = "imxrt1010"))]
+    pub fn divider<const N: u8>(ccm: &CCM) -> u32 {
+        match N {
+            1 => ral::read_reg!(ral::ccm, ccm, CS1CDR, SAI1_CLK_PODF),
+            2 => ral::read_reg!(ral::ccm, ccm, CS2CDR, SAI2_CLK_PODF),
+            3 => ral::read_reg!(ral::ccm, ccm, CS1CDR, SAI3_CLK_PODF),
+            _ => unreachable!(),
+        }
+    }
+
+    /// The smallest SAI clock divider.
+    pub const MIN_DIVIDER: u32 = 1;
+    /// The largest SAI clock divider.
+    pub const MAX_DIVIDER: u32 = 8;
+
+    /// Set the SAI clock divider.
+    ///
+    /// The implementation clamps `divider` between [`MIN_DIVIDER`] and [`MAX_DIVIDER`].
+    #[inline(always)]
+    #[cfg(not(feature = "imxrt1010"))]
+    pub fn set_divider<const N: u8>(ccm: &mut CCM, divider: u32) {
+        let podf = divider.clamp(MIN_DIVIDER, MAX_DIVIDER) - 1;
+        match N {
+            1 => ral::modify_reg!(ral::ccm, ccm, CS1CDR, SAI1_CLK_PODF: podf),
+            2 => ral::modify_reg!(ral::ccm, ccm, CS2CDR, SAI2_CLK_PODF: podf),
+            3 => ral::modify_reg!(ral::ccm, ccm, CS1CDR, SAI3_CLK_PODF: podf),
+            _ => unreachable!(),
+        }
+    }
+
+    /// SAI clock selections.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[repr(u32)]
+    pub enum Selection {
+        /// Derive from PLL3_PFD2.
+        Pll3Pfd2 = 0,
+        /// Derive from the PLL5 (Video PLL).
+        Pll5 = 1,
+        /// Derive from PLL4 (Audio PLL).
+        Pll4 = 2,
+        /// Reserved (unused).
+        Reserved = 3,
+    }
+
+    /// Returns the SAI clock selection.
+    #[inline(always)]
+    #[cfg(not(feature = "imxrt1010"))]
+    pub fn selection<const N: u8>(ccm: &CCM) -> Selection {
+        let podf: u32 = match N {
+            1 => ral::read_reg!(ral::ccm, ccm, CSCMR1, SAI1_CLK_SEL),
+            2 => ral::read_reg!(ral::ccm, ccm, CSCMR1, SAI2_CLK_SEL),
+            3 => ral::read_reg!(ral::ccm, ccm, CSCMR1, SAI3_CLK_SEL),
+            _ => unreachable!(),
+        };
+        match podf {
+            0 => Selection::Pll3Pfd2,
+            1 => Selection::Pll5,
+            2 => Selection::Pll4,
+            _ => unreachable!(),
+        }
+    }
+
+    /// Set the SAI clock selection.
+    #[inline(always)]
+    #[cfg(not(feature = "imxrt1010"))]
+    pub fn set_selection<const N: u8>(ccm: &mut CCM, selection: Selection) {
+        match N {
+            1 => ral::modify_reg!(ral::ccm, ccm, CSCMR1, SAI1_CLK_SEL: selection as u32),
+            2 => ral::modify_reg!(ral::ccm, ccm, CSCMR1, SAI2_CLK_SEL: selection as u32),
+            3 => ral::modify_reg!(ral::ccm, ccm, CSCMR1, SAI3_CLK_SEL: selection as u32),
+            _ => unreachable!(),
+        }
+    }
+}
