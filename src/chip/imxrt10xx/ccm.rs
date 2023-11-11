@@ -437,10 +437,10 @@ pub mod sai_clk {
 
     /// Returns the SAI<N> clock divider.
     #[inline(always)]
-    #[cfg(not(feature = "imxrt1010"))]
     pub fn divider<const N: u8>(ccm: &CCM) -> u32 {
         match N {
             1 => ral::read_reg!(ral::ccm, ccm, CS1CDR, SAI1_CLK_PODF),
+            #[cfg(not(feature = "imxrt1010"))]
             2 => ral::read_reg!(ral::ccm, ccm, CS2CDR, SAI2_CLK_PODF),
             3 => ral::read_reg!(ral::ccm, ccm, CS1CDR, SAI3_CLK_PODF),
             _ => unreachable!(),
@@ -456,11 +456,11 @@ pub mod sai_clk {
     ///
     /// The implementation clamps `divider` between [`MIN_DIVIDER`] and [`MAX_DIVIDER`].
     #[inline(always)]
-    #[cfg(not(feature = "imxrt1010"))]
     pub fn set_divider<const N: u8>(ccm: &mut CCM, divider: u32) {
         let podf = divider.clamp(MIN_DIVIDER, MAX_DIVIDER) - 1;
         match N {
             1 => ral::modify_reg!(ral::ccm, ccm, CS1CDR, SAI1_CLK_PODF: podf),
+            #[cfg(not(feature = "imxrt1010"))]
             2 => ral::modify_reg!(ral::ccm, ccm, CS2CDR, SAI2_CLK_PODF: podf),
             3 => ral::modify_reg!(ral::ccm, ccm, CS1CDR, SAI3_CLK_PODF: podf),
             _ => unreachable!(),
@@ -473,8 +473,12 @@ pub mod sai_clk {
     pub enum Selection {
         /// Derive from PLL3_PFD2.
         Pll3Pfd2 = 0,
+        #[cfg(not(feature = "imxrt1010"))]
         /// Derive from the PLL5 (Video PLL).
         Pll5 = 1,
+        /// Derive from PLL3
+        #[cfg(feature = "imxrt1010")]
+        Pll3SwClk = 1,
         /// Derive from PLL4 (Audio PLL).
         Pll4 = 2,
         /// Reserved (unused).
@@ -483,17 +487,20 @@ pub mod sai_clk {
 
     /// Returns the SAI clock selection.
     #[inline(always)]
-    #[cfg(not(feature = "imxrt1010"))]
     pub fn selection<const N: u8>(ccm: &CCM) -> Selection {
         let podf: u32 = match N {
             1 => ral::read_reg!(ral::ccm, ccm, CSCMR1, SAI1_CLK_SEL),
+            #[cfg(not(feature = "imxrt1010"))]
             2 => ral::read_reg!(ral::ccm, ccm, CSCMR1, SAI2_CLK_SEL),
             3 => ral::read_reg!(ral::ccm, ccm, CSCMR1, SAI3_CLK_SEL),
             _ => unreachable!(),
         };
         match podf {
             0 => Selection::Pll3Pfd2,
+            #[cfg(not(feature = "imxrt1010"))]
             1 => Selection::Pll5,
+            #[cfg(feature = "imxrt1010")]
+            1 => Selection::Pll3SwClk,
             2 => Selection::Pll4,
             _ => unreachable!(),
         }
@@ -501,10 +508,10 @@ pub mod sai_clk {
 
     /// Set the SAI clock selection.
     #[inline(always)]
-    #[cfg(not(feature = "imxrt1010"))]
     pub fn set_selection<const N: u8>(ccm: &mut CCM, selection: Selection) {
         match N {
             1 => ral::modify_reg!(ral::ccm, ccm, CSCMR1, SAI1_CLK_SEL: selection as u32),
+            #[cfg(not(feature = "imxrt1010"))]
             2 => ral::modify_reg!(ral::ccm, ccm, CSCMR1, SAI2_CLK_SEL: selection as u32),
             3 => ral::modify_reg!(ral::ccm, ccm, CSCMR1, SAI3_CLK_SEL: selection as u32),
             _ => unreachable!(),

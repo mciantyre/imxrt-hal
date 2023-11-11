@@ -42,6 +42,20 @@ fn prepare_clock_tree(
     clock_tree::configure_uart(RUN_MODE, ccm);
     clock_tree::configure_sai(RUN_MODE, ccm);
     ccm::analog::pll3::restart(ccm_analog);
+    // TODO(mciantyre) these values are arbitrary. I'm downsampling
+    // PLL4 so I can read it on my analyzer using the hal_clock_out
+    // example.
+    //
+    // By my calculations, this configuration will produce a PLL output of
+    //
+    //   (24MHz * 50 + (24MHz * 50) / 100) / 4
+    //
+    // That extra '4' factor is the default post-div select value for PLL4.
+    //
+    // When I run the hal_clock_out example on my 1010EVK and introduce a
+    // CLKO1 divider of 8, I see ~22.7MHz on test point 34. That's about what
+    // I would expect.
+    ccm::analog::pll4::restart(ccm_analog, 30, 50, 150);
 }
 
 use hal::ccm::clock_gate;
@@ -55,7 +69,7 @@ const COMMON_CLOCK_GATES: &[clock_gate::Locator] = &[
     clock_gate::usb(),
     clock_gate::trng(),
     clock_gate::sai::<1>(),
-    clock_gate::sai::<2>(), //TODO not every part has SAI2!
+    // clock_gate::sai::<2>(), //TODO not every part has SAI2!
     clock_gate::sai::<3>(),
     clock_gate::snvs_lp(),
     clock_gate::snvs_hp(),

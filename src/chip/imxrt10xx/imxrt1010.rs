@@ -71,6 +71,12 @@ pub(crate) mod ccm {
             clock_gate::snvs_hp(),
             clock_gate::usb(),
         ];
+
+        /// All SAI clock gates.
+        pub const SAI_CLOCK_GATES: &[clock_gate::Locator] = &[
+            clock_gate::sai::<1>(),
+            clock_gate::sai::<3>(),
+        ];
     }
 
     pub(crate) mod clko {

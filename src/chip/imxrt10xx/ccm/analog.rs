@@ -116,7 +116,7 @@ pub mod pll4 {
         // set div_select, num, denom
         ral::write_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO_NUM, pll_num);
         ral::write_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO_DENOM, pll_denom);
-        ral::write_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO, DIV_SELECT: div_select);
+        ral::modify_reg!(ral::ccm_analog, ccm_analog, PLL_AUDIO, DIV_SELECT: div_select);
 
         // power on, enable, and lock, but leave bypassed
         loop {
