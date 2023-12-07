@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+**BREAKING** Update `imxrt-usbd` to 0.3. Users are required to update to
+`usb-device` 0.3 and its compatible dependencies.
+
 - Add LPSPI low-level clock configuration APIs.
 - Add LPSPI `set_peripheral_enable` to configure the driver as a SPI peripheral.
 
