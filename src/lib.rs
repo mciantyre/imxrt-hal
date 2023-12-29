@@ -295,3 +295,26 @@ pub mod iomuxc {
 
 #[cfg_attr(family = "none", allow(unused_imports))] // Nothing to export in this build.
 pub use crate::chip::reexports::*;
+
+/// Simply spin on the future.
+fn spin_on<F: core::future::Future>(future: F) -> F::Output {
+    use core::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
+
+    // Safety: the RawWaker and RawWakerVTable we're using meet the contract
+    // described in each type's documentation. There's nothing to clone, drop,
+    // or wake.
+    let waker = unsafe {
+        const VTABLE: RawWakerVTable = RawWakerVTable::new(|_| RAW_WAKER, |_| {}, |_| {}, |_| {});
+        const RAW_WAKER: RawWaker = RawWaker::new(core::ptr::null(), &VTABLE);
+        Waker::from_raw(RAW_WAKER)
+    };
+
+    let mut context = Context::from_waker(&waker);
+    let mut future = core::pin::pin!(future);
+
+    loop {
+        if let Poll::Ready(result) = future.as_mut().poll(&mut context) {
+            return result;
+        }
+    }
+}
