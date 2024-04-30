@@ -8,25 +8,40 @@
 
 #[imxrt_rt::entry]
 fn main() -> ! {
-    let (board::Common { mut dma, .. }, board::Specifics { mut spi, .. }) = board::new();
+    let (
+        board::Common {
+            mut dma,
+            pit: (mut pit, _, _, _),
+            ..
+        },
+        board::Specifics { mut spi, .. },
+    ) = board::new();
 
     let mut chan_a = dma[board::BOARD_DMA_A_INDEX].take().unwrap();
     chan_a.set_disable_on_completion(true);
 
-    let mut chan_b = dma[board::BOARD_DMA_B_INDEX].take().unwrap();
-    chan_b.set_disable_on_completion(true);
+    pit.set_load_timer_value(board::PIT_FREQUENCY / 1000 * 250);
+
+    let mut delay = move || {
+        pit.enable();
+        while !pit.is_elapsed() {}
+        pit.clear_elapsed();
+        pit.disable();
+    };
 
     let task = async {
-        let mut elem: u32 = 0;
+        let mut trans = imxrt_hal::lpspi::Transaction::new(16).unwrap();
+        trans.receive_data_mask = true;
+        spi.enqueue_transaction(&trans);
+
+        let mut elem: u32 = 0x01020304;
+
         loop {
-            let expected = [elem; 8];
-            let mut actual = [elem; 8];
-            spi.dma_full_duplex(&mut chan_a, &mut chan_b, &mut actual)
-                .unwrap()
+            let outgoing = [elem; 96];
+            imxrt_hal::dma::peripheral::write(&mut chan_a, &outgoing, &mut spi)
                 .await
                 .unwrap();
-            assert_eq!(actual, expected);
-            elem = elem.wrapping_add(1);
+            delay();
         }
     };
     pin_utils::pin_mut!(task);
