@@ -6,6 +6,47 @@
 #![no_std]
 #![no_main]
 
+use hal::dma::channel::Channel;
+use imxrt_hal as hal;
+
+/// We want the DMA engine to perform 32 bit reads from the buffer, but 16-bit writes
+/// to the LPSPI transmit data register. This manually sets up that transaction.
+async fn do_custom_dma(channel: &mut Channel, source: &[u32], destination: &mut board::Spi) {
+    use hal::dma::{
+        channel::{self, Configuration},
+        peripheral::Destination,
+    };
+
+    // These persist across calls, so they could be committed once on the channel
+    // instead on every invocation of this function.
+    channel.set_channel_configuration(Configuration::enable(destination.destination_signal()));
+    unsafe {
+        // Treat the buffer as a collection of u32s. This tells the DMA engine
+        // to perform 32 bit reads.
+        channel::set_source_linear_buffer(channel, source);
+
+        // Treat the hardware port as a u16. This tells the DMA engine to perform
+        // 16 bit writes.
+        let destination_address: *const u32 = destination.destination_address();
+        let destination_address: *const u16 = destination_address.cast();
+        channel::set_destination_hardware(channel, destination_address);
+
+        // Move 4 bytes (32 bits) on every service request. By the above configurations,
+        // the DMA engine understands it should perform one read, then two writes.
+        channel.set_minor_loop_bytes(4);
+        // Move every element in the buffer.
+        channel.set_transfer_iterations(source.len() as u16);
+
+        destination.enable_destination();
+
+        let xfer = hal::dma::Transfer::new(channel);
+        xfer.await.unwrap();
+
+        destination.disable_destination();
+        while channel.is_hardware_signaling() {}
+    }
+}
+
 #[imxrt_rt::entry]
 fn main() -> ! {
     let (
@@ -34,13 +75,12 @@ fn main() -> ! {
         trans.receive_data_mask = true;
         spi.enqueue_transaction(&trans);
 
-        let mut elem: u32 = 0x01020304;
-
         loop {
-            let outgoing = [elem; 96];
-            imxrt_hal::dma::peripheral::write(&mut chan_a, &outgoing, &mut spi)
-                .await
-                .unwrap();
+            let mut outgoing = [0u32; 32];
+            for (idx, elem) in outgoing.iter_mut().enumerate() {
+                *elem = ((0xFFFFu32 - idx as u32) << 16) | idx as u32;
+            }
+            do_custom_dma(&mut chan_a, &outgoing, &mut spi).await;
             delay();
         }
     };
