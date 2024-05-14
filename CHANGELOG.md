@@ -8,6 +8,8 @@
 - `timer::*PitChan`
 - `lpspi::Disabled::{set_mode, set_watermark}`
 
+**BREAKING** `LpspiError::{Busy, NoData}` are removed as possible LPSPI errors.
+
 ## [0.5.5] 2024-05-27
 
 Add embedded-hal 1 implementations for the following drivers:
