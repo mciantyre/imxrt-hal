@@ -174,10 +174,6 @@ unsafe impl<P, const N: u8> peripheral::Destination<u32> for lpspi::Lpspi<P, N> 
 unsafe impl<P, const N: u8> peripheral::Bidirectional<u32> for lpspi::Lpspi<P, N> {}
 
 impl<P, const N: u8> lpspi::Lpspi<P, N> {
-    fn wait_for_transmit_fifo_space(&self) -> Result<(), lpspi::LpspiError> {
-        crate::spin_on(self.spin_for_fifo_space())
-    }
-
     /// Use a DMA channel to write data to the LPSPI peripheral.
     ///
     /// The future completes when all data in `buffer` has been written to the

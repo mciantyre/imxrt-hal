@@ -631,6 +631,10 @@ impl<P, const N: u8> Lpspi<P, N> {
         .await
     }
 
+    pub(crate) fn wait_for_transmit_fifo_space(&self) -> Result<(), LpspiError> {
+        crate::spin_on(self.spin_for_fifo_space())
+    }
+
     /// Wait for receive data in a (concurrent) spin loop.
     ///
     /// This future does not care about the RX FIFO watermark. Instead, it
@@ -651,19 +655,6 @@ impl<P, const N: u8> Lpspi<P, N> {
             }
         })
         .await
-    }
-
-    /// Start a spinning transaction.
-    ///
-    /// This shouldn't run concurrently with any of the other spinning tasks.
-    /// Instead, it should be executed before the I/O futures.
-    async fn spin_start_transaction(
-        &mut self,
-        transaction: &Transaction,
-    ) -> Result<(), LpspiError> {
-        self.spin_for_fifo_space().await?;
-        self.enqueue_transaction(transaction);
-        Ok(())
     }
 
     /// Send `len` LPSPI words (u32s) out of the peripheral.
@@ -766,15 +757,22 @@ impl<P, const N: u8> Lpspi<P, N> {
         let mut transaction = Transaction::new_words(data)?;
         transaction.bit_order = self.bit_order();
 
-        crate::spin_on(async {
-            self.spin_start_transaction(&transaction).await?;
-            self.spin_exchange_no_start(data).await?;
-            Ok(())
-        })
+        self.wait_for_transmit_fifo_space()?;
+        self.enqueue_transaction(&transaction);
+
+        let word_count = word_count(data);
+        let (tx, rx) = transfer_in_place(data);
+
+        crate::spin_on(futures::future::try_join(
+            self.spin_transmit(tx, word_count),
+            self.spin_receive(rx, word_count),
+        ))
         .map_err(|err| {
             self.recover_from_error();
             err
-        })
+        })?;
+
+        Ok(())
     }
 
     fn write_no_read<W: Word>(&mut self, data: &[W]) -> Result<(), LpspiError> {
@@ -786,12 +784,13 @@ impl<P, const N: u8> Lpspi<P, N> {
         transaction.receive_data_mask = true;
         transaction.bit_order = self.bit_order();
 
-        crate::spin_on(async {
-            self.spin_start_transaction(&transaction).await?;
-            self.spin_write_no_start(data).await?;
-            Ok(())
-        })
-        .map_err(|err| {
+        self.wait_for_transmit_fifo_space()?;
+        self.enqueue_transaction(&transaction);
+
+        let word_count = word_count(data);
+        let tx = TransmitBuffer::new(data);
+
+        crate::spin_on(self.spin_transmit(tx, word_count)).map_err(|err| {
             self.recover_from_error();
             err
         })
@@ -910,29 +909,6 @@ impl<P, const N: u8> Lpspi<P, N> {
     #[inline]
     pub fn set_watermark(&mut self, direction: Direction, watermark: u8) -> u8 {
         set_watermark(&self.lpspi, direction, watermark)
-    }
-
-    /// Perform a spinning write, assuming that the transaction
-    /// has already started.
-    ///
-    /// This implementation requires that the transaction's receive mask
-    /// is enabled.
-    async fn spin_write_no_start<W: Word>(&mut self, words: &[W]) -> Result<(), LpspiError> {
-        let word_count = word_count(words);
-        self.spin_transmit(TransmitBuffer::new(words), word_count)
-            .await?;
-        Ok(())
-    }
-
-    /// Exhange data within a buffer, assuming the transaction has started.
-    async fn spin_exchange_no_start<W: Word>(&mut self, words: &mut [W]) -> Result<(), LpspiError> {
-        let word_count = word_count(words);
-        let (tx, rx) = transfer_in_place(words);
-        futures::try_join!(
-            self.spin_transmit(tx, word_count),
-            self.spin_receive(rx, word_count),
-        )?;
-        Ok(())
     }
 
     /// Recover from a transaction error.
