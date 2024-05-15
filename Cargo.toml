@@ -32,11 +32,6 @@ default-features = false
 [dependencies.nb]
 version = "1"
 
-[dependencies.futures]
-version = "0.3.30"
-default-features = false
-features = ["async-await"]
-
 [dependencies.eh02]
 package = "embedded-hal"
 version = "0.2"

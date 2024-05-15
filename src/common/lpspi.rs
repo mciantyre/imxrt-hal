@@ -79,7 +79,6 @@
 //! may not work as expected.
 
 use core::marker::PhantomData;
-use core::task::Poll;
 
 use crate::iomuxc::{consts, lpspi};
 use crate::ral;
@@ -611,79 +610,17 @@ impl<P, const N: u8> Lpspi<P, N> {
         ral::write_reg!(ral::lpspi, self.lpspi, TDR, word);
     }
 
-    /// Wait for transmit FIFO space in a (concurrent) spin loop.
-    ///
-    /// This future does not care about the TX FIFO watermark. Instead, it
-    /// checks the FIFO's size with an additional read.
-    pub(crate) async fn spin_for_fifo_space(&self) -> Result<(), LpspiError> {
-        core::future::poll_fn(|_| {
+    pub(crate) fn wait_for_transmit_fifo_space(&self) -> Result<(), LpspiError> {
+        loop {
             let status = self.status();
             if status.intersects(Status::TRANSMIT_ERROR) {
-                return Poll::Ready(Err(LpspiError::Fifo(Direction::Tx)));
+                return Err(LpspiError::Fifo(Direction::Tx));
             }
             let fifo_status = self.fifo_status();
             if !fifo_status.is_full(Direction::Tx) {
-                Poll::Ready(Ok(()))
-            } else {
-                Poll::Pending
+                return Ok(());
             }
-        })
-        .await
-    }
-
-    pub(crate) fn wait_for_transmit_fifo_space(&self) -> Result<(), LpspiError> {
-        crate::spin_on(self.spin_for_fifo_space())
-    }
-
-    /// Wait for receive data in a (concurrent) spin loop.
-    ///
-    /// This future does not care about the RX FIFO watermark. Instead, it
-    /// checks the FIFO's size with an additional read.
-    async fn spin_for_word(&self) -> Result<u32, LpspiError> {
-        core::future::poll_fn(|_| {
-            let status = self.status();
-            if status.intersects(Status::RECEIVE_ERROR) {
-                return Poll::Ready(Err(LpspiError::Fifo(Direction::Rx)));
-            }
-
-            let fifo_status = self.fifo_status();
-            if !fifo_status.is_empty(Direction::Rx) {
-                let data = self.read_data_unchecked();
-                Poll::Ready(Ok(data))
-            } else {
-                Poll::Pending
-            }
-        })
-        .await
-    }
-
-    /// Send `len` LPSPI words (u32s) out of the peripheral.
-    ///
-    /// Expected to run in a (concurrent) spin loop, possibly with
-    /// `spin_receive`.
-    async fn spin_transmit(
-        &self,
-        mut data: impl TransmitData,
-        len: usize,
-    ) -> Result<(), LpspiError> {
-        for _ in 0..len {
-            self.spin_for_fifo_space().await?;
-            let word = data.next_word(self.bit_order);
-            self.enqueue_data(word);
         }
-        Ok(())
-    }
-
-    /// Accept `len` LPSPI words (u32s) from the peripheral.
-    ///
-    /// Expected to run in a (concurrent) spin loop, possibly with
-    /// `spin_transmit`.
-    async fn spin_receive(&self, mut data: impl ReceiveData, len: usize) -> Result<(), LpspiError> {
-        for _ in 0..len {
-            let word = self.spin_for_word().await?;
-            data.next_word(word);
-        }
-        Ok(())
     }
 
     /// Set the SPI mode for the peripheral.
@@ -749,6 +686,16 @@ impl<P, const N: u8> Lpspi<P, N> {
         }
     }
 
+    /// Check for any receiver errors.
+    fn recv_ok(&self) -> Result<(), LpspiError> {
+        let status = self.status();
+        if status.intersects(Status::RECEIVE_ERROR) {
+            Err(LpspiError::Fifo(Direction::Rx))
+        } else {
+            Ok(())
+        }
+    }
+
     fn exchange<W: Word>(&mut self, data: &mut [W]) -> Result<(), LpspiError> {
         if data.is_empty() {
             return Ok(());
@@ -761,12 +708,25 @@ impl<P, const N: u8> Lpspi<P, N> {
         self.enqueue_transaction(&transaction);
 
         let word_count = word_count(data);
-        let (tx, rx) = transfer_in_place(data);
-
-        crate::spin_on(futures::future::try_join(
-            self.spin_transmit(tx, word_count),
-            self.spin_receive(rx, word_count),
-        ))
+        let (mut tx, mut rx) = transfer_in_place(data);
+        let (mut sent, mut recv) = (0usize, 0usize);
+        (|| -> Result<(), LpspiError> {
+            while sent < word_count || recv < word_count {
+                if sent < word_count {
+                    self.wait_for_transmit_fifo_space()?;
+                    self.enqueue_data(tx.next_word(self.bit_order()));
+                    sent += 1;
+                }
+                if recv < word_count {
+                    self.recv_ok()?;
+                    if let Some(word) = self.read_data() {
+                        rx.next_word(word);
+                        recv += 1;
+                    }
+                }
+            }
+            Ok(())
+        })()
         .map_err(|err| {
             self.recover_from_error();
             err
@@ -787,10 +747,18 @@ impl<P, const N: u8> Lpspi<P, N> {
         self.wait_for_transmit_fifo_space()?;
         self.enqueue_transaction(&transaction);
 
-        let word_count = word_count(data);
-        let tx = TransmitBuffer::new(data);
+        let mut word_count = word_count(data);
+        let mut tx = TransmitBuffer::new(data);
 
-        crate::spin_on(self.spin_transmit(tx, word_count)).map_err(|err| {
+        (|| -> Result<(), LpspiError> {
+            while word_count != 0 {
+                self.wait_for_transmit_fifo_space()?;
+                self.enqueue_data(tx.next_word(self.bit_order()));
+                word_count -= 1;
+            }
+            Ok(())
+        })()
+        .map_err(|err| {
             self.recover_from_error();
             err
         })
