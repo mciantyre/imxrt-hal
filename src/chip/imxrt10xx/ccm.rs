@@ -538,7 +538,10 @@ pub mod sai_clk {
 
     /// Returns the `SAI<N>` clock divider.
     #[inline(always)]
-    pub fn pre_divider<const N: u8>(ccm: &CCM) -> u32 {
+    pub fn pre_divider<const N: u8>(ccm: &CCM) -> u32
+    where
+        ral::sai::Instance<N>: ral::Valid,
+    {
         1 + (match N {
             1 => ral::read_reg!(ral::ccm, ccm, CS1CDR, SAI1_CLK_PRED),
             #[cfg(not(feature = "imxrt1010"))]
@@ -557,7 +560,10 @@ pub mod sai_clk {
     ///
     /// The implementation clamps `divider` between [`MIN_DIVIDER`] and [`MAX_DIVIDER`].
     #[inline(always)]
-    pub fn set_pre_divider<const N: u8>(ccm: &mut CCM, divider: u32) {
+    pub fn set_pre_divider<const N: u8>(ccm: &mut CCM, divider: u32)
+    where
+        ral::sai::Instance<N>: ral::Valid,
+    {
         let pred = divider.clamp(MIN_PRE_DIVIDER, MAX_PRE_DIVIDER) - 1;
         match N {
             1 => ral::modify_reg!(ral::ccm, ccm, CS1CDR, SAI1_CLK_PRED: pred),
@@ -569,7 +575,10 @@ pub mod sai_clk {
     }
     /// Returns the `SAI<N>` clock divider.
     #[inline(always)]
-    pub fn divider<const N: u8>(ccm: &CCM) -> u32 {
+    pub fn divider<const N: u8>(ccm: &CCM) -> u32
+    where
+        ral::sai::Instance<N>: ral::Valid,
+    {
         1 + (match N {
             1 => ral::read_reg!(ral::ccm, ccm, CS1CDR, SAI1_CLK_PODF),
             #[cfg(not(feature = "imxrt1010"))]
@@ -588,7 +597,10 @@ pub mod sai_clk {
     ///
     /// The implementation clamps `divider` between [`MIN_DIVIDER`] and [`MAX_DIVIDER`].
     #[inline(always)]
-    pub fn set_divider<const N: u8>(ccm: &mut CCM, divider: u32) {
+    pub fn set_divider<const N: u8>(ccm: &mut CCM, divider: u32)
+    where
+        ral::sai::Instance<N>: ral::Valid,
+    {
         let podf = divider.clamp(MIN_DIVIDER, MAX_DIVIDER) - 1;
         match N {
             1 => ral::modify_reg!(ral::ccm, ccm, CS1CDR, SAI1_CLK_PODF: podf),
@@ -619,7 +631,10 @@ pub mod sai_clk {
 
     /// Returns the SAI clock selection.
     #[inline(always)]
-    pub fn selection<const N: u8>(ccm: &CCM) -> Selection {
+    pub fn selection<const N: u8>(ccm: &CCM) -> Selection
+    where
+        ral::sai::Instance<N>: ral::Valid,
+    {
         let podf: u32 = match N {
             1 => ral::read_reg!(ral::ccm, ccm, CSCMR1, SAI1_CLK_SEL),
             #[cfg(not(feature = "imxrt1010"))]
@@ -640,7 +655,10 @@ pub mod sai_clk {
 
     /// Set the SAI clock selection.
     #[inline(always)]
-    pub fn set_selection<const N: u8>(ccm: &mut CCM, selection: Selection) {
+    pub fn set_selection<const N: u8>(ccm: &mut CCM, selection: Selection)
+    where
+        ral::sai::Instance<N>: ral::Valid,
+    {
         match N {
             1 => ral::modify_reg!(ral::ccm, ccm, CSCMR1, SAI1_CLK_SEL: selection as u32),
             #[cfg(not(feature = "imxrt1010"))]
