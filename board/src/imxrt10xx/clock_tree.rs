@@ -125,7 +125,7 @@ const fn sai_divider(_n: u8, run_mode: RunMode) -> u32 {
 }
 
 /// Specify the SAIn clock pre-divider for a given run mode.
-const fn sai_pre_divider(_n: u8, run_mode: RunMode) -> u32 {
+const fn sai_predivider(_n: u8, run_mode: RunMode) -> u32 {
     match run_mode {
         RunMode::Overdrive => 5,
     }
@@ -195,7 +195,7 @@ pub fn configure_sai(run_mode: RunMode, ccm: &mut CCM) {
         .iter()
         .for_each(|locator| locator.set(ccm, clock_gate::OFF));
     sai_clk::set_selection::<1>(ccm, sai_selection(1, run_mode));
-    sai_clk::set_pre_divider::<1>(ccm, sai_pre_divider(1, run_mode));
+    sai_clk::set_predivider::<1>(ccm, sai_predivider(1, run_mode));
     sai_clk::set_divider::<1>(ccm, sai_divider(1, run_mode));
 }
 

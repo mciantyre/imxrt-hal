@@ -536,9 +536,9 @@ macro_rules! ccm_flexio {
 pub mod sai_clk {
     use crate::ral::{self, ccm::CCM};
 
-    /// Returns the `SAI<N>` clock divider.
+    /// Returns the `SAI<N>` clock predivider.
     #[inline(always)]
-    pub fn pre_divider<const N: u8>(ccm: &CCM) -> u32
+    pub fn predivider<const N: u8>(ccm: &CCM) -> u32
     where
         ral::sai::Instance<N>: ral::Valid,
     {
@@ -551,20 +551,20 @@ pub mod sai_clk {
         })
     }
 
-    /// The smallest SAI clock divider.
-    pub const MIN_PRE_DIVIDER: u32 = 1;
-    /// The largest SAI clock divider.
-    pub const MAX_PRE_DIVIDER: u32 = 8;
+    /// The smallest SAI clock predivider.
+    pub const MIN_PREDIVIDER: u32 = 1;
+    /// The largest SAI clock predivider.
+    pub const MAX_PREDIVIDER: u32 = 8;
 
     /// Set the SAI clock divider.
     ///
-    /// The implementation clamps `divider` between [`MIN_DIVIDER`] and [`MAX_DIVIDER`].
+    /// The implementation clamps `divider` between [`MIN_PREDIVIDER`] and [`MAX_PREDIVIDER`].
     #[inline(always)]
-    pub fn set_pre_divider<const N: u8>(ccm: &mut CCM, divider: u32)
+    pub fn set_predivider<const N: u8>(ccm: &mut CCM, predivider: u32)
     where
         ral::sai::Instance<N>: ral::Valid,
     {
-        let pred = divider.clamp(MIN_PRE_DIVIDER, MAX_PRE_DIVIDER) - 1;
+        let pred = predivider.clamp(MIN_PREDIVIDER, MAX_PREDIVIDER) - 1;
         match N {
             1 => ral::modify_reg!(ral::ccm, ccm, CS1CDR, SAI1_CLK_PRED: pred),
             #[cfg(not(feature = "imxrt1010"))]
