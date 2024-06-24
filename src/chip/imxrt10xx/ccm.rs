@@ -635,14 +635,14 @@ pub mod sai_clk {
     where
         ral::sai::Instance<N>: ral::Valid,
     {
-        let podf: u32 = match N {
+        let sel: u32 = match N {
             1 => ral::read_reg!(ral::ccm, ccm, CSCMR1, SAI1_CLK_SEL),
             #[cfg(not(feature = "imxrt1010"))]
             2 => ral::read_reg!(ral::ccm, ccm, CSCMR1, SAI2_CLK_SEL),
             3 => ral::read_reg!(ral::ccm, ccm, CSCMR1, SAI3_CLK_SEL),
             _ => unreachable!(),
         };
-        match podf {
+        match sel {
             0 => Selection::Pll3Pfd2,
             #[cfg(not(feature = "imxrt1010"))]
             1 => Selection::Pll5,
