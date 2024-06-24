@@ -539,13 +539,13 @@ pub mod sai_clk {
     /// Returns the `SAI<N>` clock divider.
     #[inline(always)]
     pub fn pre_divider<const N: u8>(ccm: &CCM) -> u32 {
-        match N {
+        1 + (match N {
             1 => ral::read_reg!(ral::ccm, ccm, CS1CDR, SAI1_CLK_PRED),
             #[cfg(not(feature = "imxrt1010"))]
             2 => ral::read_reg!(ral::ccm, ccm, CS2CDR, SAI2_CLK_PRED),
             3 => ral::read_reg!(ral::ccm, ccm, CS1CDR, SAI3_CLK_PRED),
             _ => unreachable!(),
-        }
+        })
     }
 
     /// The smallest SAI clock divider.
@@ -570,13 +570,13 @@ pub mod sai_clk {
     /// Returns the `SAI<N>` clock divider.
     #[inline(always)]
     pub fn divider<const N: u8>(ccm: &CCM) -> u32 {
-        match N {
+        1 + (match N {
             1 => ral::read_reg!(ral::ccm, ccm, CS1CDR, SAI1_CLK_PODF),
             #[cfg(not(feature = "imxrt1010"))]
             2 => ral::read_reg!(ral::ccm, ccm, CS2CDR, SAI2_CLK_PODF),
             3 => ral::read_reg!(ral::ccm, ccm, CS1CDR, SAI3_CLK_PODF),
             _ => unreachable!(),
-        }
+        })
     }
 
     /// The smallest SAI clock divider.
