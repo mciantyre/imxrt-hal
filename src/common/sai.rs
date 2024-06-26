@@ -356,9 +356,7 @@ impl<const N: u8, const WORD_SIZE: u8, const FRAME_SIZE: usize, PACKING: Packing
     /// Clear status error flags
     pub fn clear_status(&mut self, flags: Status) {
         let flags = flags & Status::W1C;
-        ral::modify_reg!(ral::sai, self.sai, TCSR, |tcsr| {
-            tcsr | flags.bits()
-        });
+        ral::modify_reg!(ral::sai, self.sai, TCSR, |tcsr| { tcsr | flags.bits() });
     }
 
     /// Get a dump of the Tx configuration registers
