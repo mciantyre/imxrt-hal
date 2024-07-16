@@ -96,7 +96,7 @@ mod app {
         make_log.set_interrupt_enable(true);
         make_log.enable();
 
-        let usbd = hal::usbd::Instances {
+        let usbd = imxrt_usbd::Instances {
             usb: usb1,
             usbnc: usbnc1,
             usbphy: usbphy1,

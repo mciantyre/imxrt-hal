@@ -73,10 +73,6 @@ workspace = true
 [dependencies.imxrt-ral]
 workspace = true
 
-[dependencies.imxrt-usbd]
-workspace = true
-optional = true
-
 [package.metadata.docs.rs]
 default-target = "thumbv7em-none-eabihf"
 features = ["imxrt-ral/imxrt1062", "imxrt1060"]
@@ -86,7 +82,6 @@ features = ["imxrt-ral/imxrt1062", "imxrt1060"]
 ###############
 
 [features]
-default = ["imxrt-usbd"]
 imxrt1010 = ["imxrt-iomuxc/imxrt1010"]
 imxrt1020 = ["imxrt-iomuxc/imxrt1020"]
 imxrt1060 = ["imxrt-iomuxc/imxrt1060"]
@@ -150,6 +145,7 @@ codegen-units = 256
 [dev-dependencies]
 cortex-m = "0.7"
 imxrt-rt = { workspace = true }
+imxrt-usbd = { workspace = true }
 menu = "0.3.2"
 rtic = { version = "2.0", features = ["thumbv7-backend"] }
 log = "0.4"
@@ -204,3 +200,6 @@ name = "rtic_defmt_rtt"
 [[example]]
 name = "hal_i2c_lcd1602"
 required-features = ["board/lcd1602"]
+
+[patch.crates-io.imxrt-usbd]
+git = "https://github.com/mciantyre/imxrt-usbd"

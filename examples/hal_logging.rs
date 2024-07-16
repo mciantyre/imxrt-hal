@@ -34,8 +34,6 @@ const MAKE_LOG_INTERVAL_MS: u32 = board::PIT_FREQUENCY / 1_000 * 250;
 // End configurations.
 //
 
-use imxrt_hal as hal;
-
 #[imxrt_rt::entry]
 fn main() -> ! {
     let (
@@ -56,7 +54,7 @@ fn main() -> ! {
     make_log.set_interrupt_enable(false);
     make_log.enable();
 
-    let usbd = hal::usbd::Instances {
+    let usbd = imxrt_usbd::Instances {
         usb: usb1,
         usbnc: usbnc1,
         usbphy: usbphy1,

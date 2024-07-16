@@ -9,8 +9,6 @@
 /// How frequently (milliseconds) should we make a random number?
 const MAKE_LOG_INTERVAL_MS: u32 = board::PIT_FREQUENCY / 1_000 * 250;
 
-use imxrt_hal as hal;
-
 const FRONTEND: board::logging::Frontend = board::logging::Frontend::Log;
 const BACKEND: board::logging::Backend = board::logging::BACKEND;
 
@@ -37,7 +35,7 @@ fn main() -> ! {
     make_log.set_interrupt_enable(false);
     make_log.enable();
 
-    let usbd = hal::usbd::Instances {
+    let usbd = imxrt_usbd::Instances {
         usb: usb1,
         usbnc: usbnc1,
         usbphy: usbphy1,

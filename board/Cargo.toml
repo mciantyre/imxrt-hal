@@ -30,7 +30,7 @@ default-features = false
 
 [dependencies.imxrt-usbd]
 workspace = true
-features = ["defmt-03"]
+features = ["defmt-03", "imxrt-ral"]
 
 [dependencies.cortex-m]
 version = "0.7"
