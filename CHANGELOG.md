@@ -2,8 +2,9 @@
 
 ## [Unreleased]
 
-**BREAKING** Update `imxrt-usbd` to 0.3. Users are required to update to
-`usb-device` 0.3 and its compatible dependencies.
+**BREAKING** Remove the dependency on `imxrt-usbd` and the `usbd` module.
+Users should select their preferred versions of `imxrt-usbd`, `usb-device`,
+and other class packages.
 
 **BREAKING** Remove deprecated APIs
 
