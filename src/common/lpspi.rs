@@ -1406,7 +1406,7 @@ struct ReceiveBuffer<'a, W> {
     _buffer: PhantomData<&'a [W]>,
 }
 
-impl<'a, W> ReceiveBuffer<'a, W>
+impl<W> ReceiveBuffer<'_, W>
 where
     W: Word,
 {
@@ -1460,7 +1460,7 @@ const fn per_word<W: Word>() -> usize {
 
 /// Computes how many u32 words we need to transact this buffer.
 const fn word_count<W: Word>(words: &[W]) -> usize {
-    (words.len() + per_word::<W>() - 1) / per_word::<W>()
+    words.len().div_ceil(per_word::<W>())
 }
 
 /// Creates the transmit and receive buffer objects for an
