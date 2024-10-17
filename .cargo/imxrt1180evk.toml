@@ -1,0 +1,11 @@
+[build]
+target = "thumbv8m.main-none-eabihf"
+target-dir = "target/imxrt1180evk-cm33"
+
+[target.thumbv8m.main-none-eabihf]
+runner = "probe-rs run --chip=mimxrt1189"
+rustflags = ["-Ctarget-cpu=cortex-m33"]
+
+[profile.dev]
+opt-level = 1
+panic = "abort"
