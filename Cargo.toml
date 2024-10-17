@@ -130,10 +130,6 @@ categories = ["embedded", "no-std"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
-[profile.dev]
-opt-level = 1
-panic = "abort"
-
 [profile.release]
 opt-level = "z"
 lto = "fat"

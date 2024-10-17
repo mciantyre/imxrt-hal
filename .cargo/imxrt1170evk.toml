@@ -1,0 +1,10 @@
+[build]
+target = "thumbv7em-none-eabihf"
+target-dir = "target/imxrt1170evk-cm7"
+
+[target.thumbv7em-none-eabihf]
+runner = "probe-rs run --chip=mimxrt1170"
+
+[profile.dev]
+opt-level = 1
+panic = "abort"
