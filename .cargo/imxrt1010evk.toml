@@ -1,0 +1,11 @@
+[build]
+target = "thumbv7em-none-eabihf"
+target-dir = "target/imxrt1010evk"
+
+[target.thumbv7em-none-eabihf]
+runner = "probe-rs run --chip=mimxrt1010"
+rustflags = ["-Ctarget-cpu=cortex-m7"]
+
+[profile.dev]
+opt-level = 1
+panic = "abort"
