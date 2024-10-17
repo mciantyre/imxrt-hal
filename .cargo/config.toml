@@ -6,3 +6,10 @@ rustflags = [
     "-Clink-arg=-error-limit=0",
     "-Clink-arg=-nmagic",
 ]
+
+[alias]
+imxrt1010evk = "run --features=board/imxrt1010evk --config=.cargo/imxrt1010evk.toml"
+imxrt1060evk = "run --features=board/imxrt1060evk --config=.cargo/imxrt1060evk.toml"
+imxrt1170evk-cm7 = "run --features=board/imxrt1170evk-cm7 --config=.cargo/imxrt1170evk.toml"
+imxrt1180evk-cm33 = "run --features=board/imxrt1180evk-cm33 --config=.cargo/imxrt1180evk.toml"
+teensy4 = "run --features=board/teensy4 --config=.cargo/teensy4.toml"
