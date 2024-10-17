@@ -1,0 +1,10 @@
+[build]
+target = "thumbv7em-none-eabihf"
+target-dir = "target/teensy4"
+
+[target.thumbv7em-none-eabihf]
+runner = "teensy4-runner"
+
+[profile.dev]
+opt-level = 1
+panic = "abort"
