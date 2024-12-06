@@ -112,7 +112,7 @@ jobs:
     - name: Build examples
       run: >
         cargo build --features=board/imxrt1180evk-cm33 --target=thumbv8m.main-none-eabihf --release
-        --example=hal_led
+        --example=hal_led --example=hal_uart
 
   # Run unit, integration tests.
   #
