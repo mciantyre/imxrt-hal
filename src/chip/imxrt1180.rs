@@ -1,4 +1,4 @@
-pub use drivers::rgpio;
+pub use drivers::{dma, rgpio};
 
 pub(crate) mod iomuxc {
     pub use super::config::pads;
@@ -17,15 +17,14 @@ pub mod ccm {
     pub use crate::common::ccm::*;
 }
 
-pub mod dma {
-    #[doc(hidden)]
-    pub struct __PretendUsed(());
-}
-
 mod drivers {
+    pub mod dma;
     pub mod rgpio;
 }
 
-mod config {
+pub(crate) mod config {
     pub use imxrt_iomuxc::imxrt1180 as pads;
+
+    /// The minimum number of DMA channels per controller.
+    pub const DMA_CHANNEL_COUNT: usize = 32;
 }

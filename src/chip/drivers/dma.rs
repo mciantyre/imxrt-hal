@@ -1,5 +1,6 @@
 //! Chip-specific DMA APIs.
 
+#[cfg(not(chip = "imxrt1180"))]
 use crate::ral;
 
 use crate::common::dma::channel::Channel;
@@ -23,6 +24,7 @@ pub const CHANNEL_COUNT: usize = crate::chip::config::DMA_CHANNEL_COUNT;
 /// DMA channel wakers on interrupt.
 // Safety: pointers come from RAL, and are correct for the selected chip.
 // DMA channel count is also valid for the chip selection.
+#[cfg(not(chip = "imxrt1180"))]
 pub static DMA: crate::common::dma::Dma<{ CHANNEL_COUNT }> = unsafe {
     crate::common::dma::Dma::new(
         crate::ral::dma::DMA.cast(),
@@ -37,6 +39,7 @@ pub static DMA: crate::common::dma::Dma<{ CHANNEL_COUNT }> = unsafe {
 ///
 /// When `channels` returns, each element is guaranteed to hold `Some` channel.
 /// You may then `take()` the channel, leaving `None` in its place.
+#[cfg(not(chip = "imxrt1180"))]
 pub fn channels(_: ral::dma::DMA, _: ral::dmamux::DMAMUX) -> [Option<Channel>; CHANNEL_COUNT] {
     const NO_CHANNEL: Option<Channel> = None;
     let mut channels: [Option<Channel>; CHANNEL_COUNT] = [NO_CHANNEL; CHANNEL_COUNT];
@@ -46,6 +49,40 @@ pub fn channels(_: ral::dma::DMA, _: ral::dmamux::DMAMUX) -> [Option<Channel>; C
         // It would be unsafe for the user to subsequently access the DMA instances.
         let mut chan = unsafe { DMA.channel(idx) };
         chan.reset();
+        *channel = Some(chan);
+    }
+    channels
+}
+
+/// The eDMA3 driver.
+///
+/// This provides a way to allocate DMA channels associated with eDMA3.
+/// You're responsible for making sure those DMA channels are compatible
+/// with your peripheral.
+#[cfg(chip = "imxrt1180")]
+pub static DMA3: crate::common::dma::Dma<{ CHANNEL_COUNT }> =
+    unsafe { crate::common::dma::Dma::new_edma3(0x4400_0000 as *const ()) };
+
+/// # Safety
+///
+/// Using this more than once aliases DMA channels.
+#[cfg(chip = "imxrt1180")]
+pub unsafe fn channels() -> [Option<Channel>; CHANNEL_COUNT] {
+    const NO_CHANNEL: Option<Channel> = None;
+    let mut channels: [Option<Channel>; CHANNEL_COUNT] = [NO_CHANNEL; CHANNEL_COUNT];
+
+    // Safety: User assumes the risk of calling this more than once
+    // and racing on this modification.
+    unsafe { DMA3.set_global_id_replication(true) };
+
+    for (idx, channel) in channels.iter_mut().enumerate() {
+        // Safety: User assumes the risk of calling this more than once and aliasing
+        // the channels.
+        let mut chan = unsafe { DMA3.channel(idx) };
+        chan.reset();
+        chan.set_id_replication(true);
+        chan.set_privilege_protection(true);
+        chan.set_secure_protection(true);
         *channel = Some(chan);
     }
     channels
@@ -77,6 +114,14 @@ mod mappings {
 
     pub(super) const LPSPI_DMA_RX_MAPPING: [u32; 6] = [36, 38, 40, 42, 44, 46];
     pub(super) const LPSPI_DMA_TX_MAPPING: [u32; 6] = [37, 39, 41, 43, 45, 47];
+}
+#[cfg(chip = "imxrt1180")]
+mod mappings {
+    pub(super) const LPUART_DMA_RX_MAPPING: [u32; 1] = [17];
+    pub(super) const LPUART_DMA_TX_MAPPING: [u32; 1] = [16];
+
+    pub(super) const LPSPI_DMA_RX_MAPPING: [u32; 0] = [];
+    pub(super) const LPSPI_DMA_TX_MAPPING: [u32; 0] = [];
 }
 use mappings::*;
 

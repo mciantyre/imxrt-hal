@@ -23,6 +23,9 @@ workspace = true
 [build-dependencies.imxrt-rt]
 workspace = true
 
+[build-dependencies.cc]
+version = "1"
+
 [dependencies.imxrt-log]
 workspace = true
 optional = true

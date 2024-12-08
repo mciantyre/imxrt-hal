@@ -134,12 +134,99 @@ impl Common {
 
 #[cfg(chip = "imxrt1180")]
 #[non_exhaustive]
-pub struct Common {}
+pub struct Common {
+    /// DMA channels.
+    pub dma: [Option<hal::dma::channel::Channel>; hal::dma::CHANNEL_COUNT],
+}
+
+#[cfg(chip = "imxrt1180")]
+#[link(name = "fsl")]
+unsafe extern "C" {
+    safe fn ELE_BaseAPI_GetFwStatus(s3m: *const (), status: &mut u32) -> i32;
+    safe fn ELE_BaseAPI_ReleaseRDC(s3m: *const (), rdc_id: u32, core_id: u32) -> i32;
+}
 
 #[cfg(chip = "imxrt1180")]
 impl Common {
     fn new() -> Self {
-        Self {}
+        // The 1189 RAL interface doesn't know about this.
+        const S3MU: *const () = 0x47540000 as _;
+
+        let mut scratch = 0;
+        // Is EdgeLock alive and happy with our firmware?
+        while ELE_BaseAPI_GetFwStatus(S3MU, &mut scratch) != 0 {}
+        // EdgeLock, please give us (the CM33, magic? 0x01) the TRDC1 (magic? 0x71).
+        while ELE_BaseAPI_ReleaseRDC(S3MU, 0x74, 0x01) != 0 {}
+
+        // Safety: Nothing else is running during board setup.
+        unsafe {
+            // The eDMA domain access controller will bypass its own
+            // domain ID. Instead, it will uses ID from the accessing
+            // bus. That's us, the CM33.
+            //
+            // Some constants in the RAL / from the SVD are useless...
+            ral::modify_reg!(ral::trdc1, ral::trdc1::TRDC1, MDA_W0_2_DFMT1,
+                PA: 2,          // Use the bus' privilege attribute.
+                SA: 2,          // Use the bus' security attribute.
+                DIDB: 1,        // Let the DMA engine "masquerade" as a processor.
+                VLD: VALID,     // Everything we just set is valid.
+            );
+
+            // We want all block controllers and all region controllers to accept
+            // all accesses. Too bad the SVDs didn't cluster these registers / raltool
+            // didn't codgen good.
+            const ALLOW_ALL: u32 = 0b0111_0111_0111_0111;
+
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC0_GLBAC0, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC0_GLBAC1, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC0_GLBAC2, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC0_GLBAC3, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC0_GLBAC4, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC0_GLBAC5, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC0_GLBAC6, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC0_GLBAC7, ALLOW_ALL);
+
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC1_GLBAC0, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC1_GLBAC1, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC1_GLBAC2, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC1_GLBAC3, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC1_GLBAC4, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC1_GLBAC5, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC1_GLBAC6, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MRC1_GLBAC7, ALLOW_ALL);
+
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC0_MEMN_GLBAC0, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC0_MEMN_GLBAC1, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC0_MEMN_GLBAC2, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC0_MEMN_GLBAC3, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC0_MEMN_GLBAC4, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC0_MEMN_GLBAC5, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC0_MEMN_GLBAC6, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC0_MEMN_GLBAC7, ALLOW_ALL);
+
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC1_MEMN_GLBAC0, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC1_MEMN_GLBAC1, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC1_MEMN_GLBAC2, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC1_MEMN_GLBAC3, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC1_MEMN_GLBAC4, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC1_MEMN_GLBAC5, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC1_MEMN_GLBAC6, ALLOW_ALL);
+            ral::write_reg!(ral::trdc1, ral::trdc1::TRDC1, MBC1_MEMN_GLBAC7, ALLOW_ALL);
+
+            // Enable the TRDC. Debugging reveals that this is already
+            // set once we gain access to the TRDC, so this doesn't
+            // seem necessary.
+            ral::modify_reg!(ral::trdc1, ral::trdc1::TRDC1, TRDC_CR,
+                GVLDM: 1,
+                GVLDB: 1,
+                GVLDR: 1,
+            );
+        }
+
+        // let dma = [const { None }; 32];
+        // Safety: Only executes once per program.
+        let dma = unsafe { hal::dma::channels() };
+        Self { dma }
     }
 }
 /// Board entrypoint.
