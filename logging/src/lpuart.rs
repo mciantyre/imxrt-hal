@@ -7,14 +7,14 @@
 //! is OK from the first phase.
 
 use imxrt_hal::{
-    dma::{channel, peripheral::Destination},
+    dma::{channel, peripheral::Destination, Channel},
     lpuart::{Direction, Lpuart},
 };
 use static_cell::StaticCell;
 
 pub(crate) struct Backend {
     consumer: crate::Consumer,
-    channel: channel::Channel,
+    channel: Channel,
 }
 
 impl Backend {
@@ -114,7 +114,7 @@ impl Backend {
 /// Panics if called more than once.
 pub(crate) fn init<P, const LPUART: u8>(
     mut lpuart: Lpuart<P, LPUART>,
-    mut channel: channel::Channel,
+    mut channel: Channel,
     consumer: crate::Consumer,
     interrupts: crate::Interrupts,
 ) -> &'static mut Backend {

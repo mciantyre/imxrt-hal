@@ -75,7 +75,7 @@ pub struct Common {
     /// Use [`GPT2_FREQUENCY`] to understand its frequency.
     pub gpt2: hal::gpt::Gpt<2>,
     /// DMA channels.
-    pub dma: [Option<hal::dma::channel::Channel>; hal::dma::CHANNEL_COUNT],
+    pub dma: [Option<hal::dma::Channel>; hal::dma::CHANNEL_COUNT],
     /// Secure real-time counter.
     ///
     /// Examples may enable the SRTC.
@@ -135,8 +135,8 @@ impl Common {
 #[cfg(chip = "imxrt1180")]
 #[non_exhaustive]
 pub struct Common {
-    /// DMA channels.
-    pub dma: [Option<hal::dma::channel::Channel>; hal::dma::CHANNEL_COUNT],
+    /// DMA3 channels.
+    pub dma: [Option<hal::dma::channel::Channel<3>>; hal::dma::CHANNEL_COUNT],
 }
 
 #[cfg(chip = "imxrt1180")]
@@ -225,7 +225,7 @@ impl Common {
 
         // let dma = [const { None }; 32];
         // Safety: Only executes once per program.
-        let dma = unsafe { hal::dma::channels() };
+        let dma = unsafe { hal::dma::channels3() };
         Self { dma }
     }
 }
@@ -395,7 +395,7 @@ pub mod blocking {
 /// features. Then, simply define the default backend in your module.
 #[cfg(feature = "imxrt-log")]
 pub mod logging {
-    use crate::hal::{dma::channel::Channel, lpuart::Lpuart, usbd::Instances};
+    use crate::hal::{dma::Channel, lpuart::Lpuart, usbd::Instances};
     pub use imxrt_log::Poller;
     pub const BACKEND: Backend = crate::board_impl::DEFAULT_LOGGING_BACKEND;
 

@@ -3,8 +3,6 @@
 #[cfg(not(chip = "imxrt1180"))]
 use crate::ral;
 
-use crate::common::dma::channel::Channel;
-
 /// The total number of DMA channels.
 ///
 /// This is 16 the minumum number of DMA channels available for all
@@ -12,6 +10,16 @@ use crate::common::dma::channel::Channel;
 /// and that chip family has more than 16 DMA channels, this value may
 /// increase.
 pub const CHANNEL_COUNT: usize = crate::chip::config::DMA_CHANNEL_COUNT;
+
+/// A DMA channel.
+///
+/// In this implementation, all DMA channels work with all
+/// peripherals.
+#[cfg(not(chip = "imxrt1180"))]
+pub type Channel = crate::common::dma::channel::Channel<0>;
+
+#[cfg(chip = "imxrt1180")]
+pub use crate::common::dma::channel::Channel;
 
 /// The DMA driver.
 ///
@@ -25,7 +33,7 @@ pub const CHANNEL_COUNT: usize = crate::chip::config::DMA_CHANNEL_COUNT;
 // Safety: pointers come from RAL, and are correct for the selected chip.
 // DMA channel count is also valid for the chip selection.
 #[cfg(not(chip = "imxrt1180"))]
-pub static DMA: crate::common::dma::Dma<{ CHANNEL_COUNT }> = unsafe {
+pub static DMA: crate::common::dma::Dma<0, CHANNEL_COUNT> = unsafe {
     crate::common::dma::Dma::new(
         crate::ral::dma::DMA.cast(),
         crate::ral::dmamux::DMAMUX.cast(),
@@ -57,28 +65,32 @@ pub fn channels(_: ral::dma::DMA, _: ral::dmamux::DMAMUX) -> [Option<Channel>; C
 /// The eDMA3 driver.
 ///
 /// This provides a way to allocate DMA channels associated with eDMA3.
-/// You're responsible for making sure those DMA channels are compatible
-/// with your peripheral.
 #[cfg(chip = "imxrt1180")]
-pub static DMA3: crate::common::dma::Dma<{ CHANNEL_COUNT }> =
+pub static DMA3: crate::common::dma::Dma<3, 32> =
     unsafe { crate::common::dma::Dma::new_edma3(0x4400_0000 as *const ()) };
 
-/// # Safety
+/// The eDMA4 driver.
 ///
-/// Using this more than once aliases DMA channels.
+/// This provides a way to allocate DMA channels associated with eDMA4.
 #[cfg(chip = "imxrt1180")]
-pub unsafe fn channels() -> [Option<Channel>; CHANNEL_COUNT] {
-    const NO_CHANNEL: Option<Channel> = None;
-    let mut channels: [Option<Channel>; CHANNEL_COUNT] = [NO_CHANNEL; CHANNEL_COUNT];
+pub static DMA4: crate::common::dma::Dma<4, 64> =
+    unsafe { crate::common::dma::Dma::new_edma4(0x4200_0000 as *const ()) };
+
+/// Common setup for both eDMA controllers.
+#[cfg(chip = "imxrt1180")]
+fn channels<const DMA_INST: u8, const CHANNEL_COUNT: usize>(
+    dma: &'static crate::common::dma::Dma<DMA_INST, CHANNEL_COUNT>,
+) -> [Option<crate::common::dma::channel::Channel<DMA_INST>>; CHANNEL_COUNT] {
+    let mut channels = [const { None }; CHANNEL_COUNT];
 
     // Safety: User assumes the risk of calling this more than once
     // and racing on this modification.
-    unsafe { DMA3.set_global_id_replication(true) };
+    unsafe { dma.set_global_id_replication(true) };
 
     for (idx, channel) in channels.iter_mut().enumerate() {
         // Safety: User assumes the risk of calling this more than once and aliasing
         // the channels.
-        let mut chan = unsafe { DMA3.channel(idx) };
+        let mut chan = unsafe { dma.channel(idx) };
         chan.reset();
         chan.set_id_replication(true);
         chan.set_privilege_protection(true);
@@ -86,6 +98,22 @@ pub unsafe fn channels() -> [Option<Channel>; CHANNEL_COUNT] {
         *channel = Some(chan);
     }
     channels
+}
+
+/// # Safety
+///
+/// Using this more than once aliases DMA channels.
+#[cfg(chip = "imxrt1180")]
+pub unsafe fn channels3() -> [Option<Channel<3>>; 32] {
+    channels::<3, 32>(&DMA3)
+}
+
+/// # Safety
+///
+/// Using this more than once aliases DMA channels.
+#[cfg(chip = "imxrt1180")]
+pub unsafe fn channels4() -> [Option<Channel<4>>; 64] {
+    channels::<4, 64>(&DMA4)
 }
 
 //
@@ -104,6 +132,11 @@ mod mappings {
     pub(super) const LPSPI_DMA_TX_MAPPING: [u32; 4] = [14, 78, 16, 80];
 
     pub(super) const ADC_DMA_RX_MAPPING: [u32; 2] = [24, 88];
+
+    // All implemented peripherals work with the single DMA controller.
+    use crate::{dma, lpspi, lpuart};
+    impl<P, const N: u8> dma::WorksWith<0> for lpuart::Lpuart<P, N> {}
+    impl<P, const N: u8> dma::WorksWith<0> for lpspi::Lpspi<P, N> {}
 }
 #[cfg(chip = "imxrt1170")]
 mod mappings {
@@ -114,6 +147,13 @@ mod mappings {
 
     pub(super) const LPSPI_DMA_RX_MAPPING: [u32; 6] = [36, 38, 40, 42, 44, 46];
     pub(super) const LPSPI_DMA_TX_MAPPING: [u32; 6] = [37, 39, 41, 43, 45, 47];
+
+    // All implemented peripherals work with *both* DMA controllers.
+    // Since they're equivalent, we realize both DMA controllers with
+    // the same type state.
+    use crate::{dma, lpspi, lpuart};
+    impl<P, const N: u8> dma::WorksWith<0> for lpuart::Lpuart<P, N> {}
+    impl<P, const N: u8> dma::WorksWith<0> for lpspi::Lpspi<P, N> {}
 }
 #[cfg(chip = "imxrt1180")]
 mod mappings {
@@ -122,6 +162,10 @@ mod mappings {
 
     pub(super) const LPSPI_DMA_RX_MAPPING: [u32; 0] = [];
     pub(super) const LPSPI_DMA_TX_MAPPING: [u32; 0] = [];
+
+    // This MCU has constraints on peripheral-to-controller mapping.
+    use crate::{dma, lpuart};
+    impl<P> dma::WorksWith<3> for lpuart::Lpuart<P, 1> {}
 }
 use mappings::*;
 
@@ -167,22 +211,28 @@ impl<P, const N: u8> lpuart::Lpuart<P, N> {
     ///
     /// Completes when all data in `buffer` has been written to the UART
     /// peripheral.
-    pub fn dma_write<'a>(
+    pub fn dma_write<'a, const DMA_INST: u8>(
         &'a mut self,
-        channel: &'a mut Channel,
+        channel: &'a mut crate::dma::channel::Channel<DMA_INST>,
         buffer: &'a [u8],
-    ) -> peripheral::Write<'a, Self, u8> {
+    ) -> peripheral::Write<'a, Self, u8, DMA_INST>
+    where
+        Self: crate::dma::WorksWith<DMA_INST>,
+    {
         peripheral::write(channel, buffer, self)
     }
 
     /// Use a DMA channel to read data from the UART peripheral
     ///
     /// Completes when `buffer` is filled.
-    pub fn dma_read<'a>(
+    pub fn dma_read<'a, const DMA_INST: u8>(
         &'a mut self,
-        channel: &'a mut Channel,
+        channel: &'a mut crate::dma::channel::Channel<DMA_INST>,
         buffer: &'a mut [u8],
-    ) -> peripheral::Read<'a, Self, u8> {
+    ) -> peripheral::Read<'a, Self, u8, DMA_INST>
+    where
+        Self: crate::dma::WorksWith<DMA_INST>,
+    {
         peripheral::read(channel, self, buffer)
     }
 }
@@ -236,11 +286,14 @@ impl<P, const N: u8> lpspi::Lpspi<P, N> {
     /// command queue. An error indicates that there was an issue preparing the
     /// transaction, or there was an issue while waiting for space in the command
     /// queue.
-    pub fn dma_write<'a>(
+    pub fn dma_write<'a, const DMA_INST: u8>(
         &'a mut self,
-        channel: &'a mut Channel,
+        channel: &'a mut crate::dma::channel::Channel<DMA_INST>,
         buffer: &'a [u32],
-    ) -> Result<peripheral::Write<'a, Self, u32>, lpspi::LpspiError> {
+    ) -> Result<peripheral::Write<'a, Self, u32, DMA_INST>, lpspi::LpspiError>
+    where
+        Self: crate::dma::WorksWith<DMA_INST>,
+    {
         let mut transaction = lpspi::Transaction::new_u32s(buffer)?;
         transaction.bit_order = self.bit_order();
 
@@ -256,11 +309,14 @@ impl<P, const N: u8> lpspi::Lpspi<P, N> {
     /// space is available in the command queue. An error indicates that there was
     /// an issue preparing the transaction, or there was an issue waiting for space
     /// in the command queue.
-    pub fn dma_read<'a>(
+    pub fn dma_read<'a, const DMA_INST: u8>(
         &'a mut self,
-        channel: &'a mut Channel,
+        channel: &'a mut crate::dma::channel::Channel<DMA_INST>,
         buffer: &'a mut [u32],
-    ) -> Result<peripheral::Read<'a, Self, u32>, lpspi::LpspiError> {
+    ) -> Result<peripheral::Read<'a, Self, u32, DMA_INST>, lpspi::LpspiError>
+    where
+        Self: crate::dma::WorksWith<DMA_INST>,
+    {
         let mut transaction = lpspi::Transaction::new_u32s(buffer)?;
         transaction.bit_order = self.bit_order();
 
@@ -277,12 +333,15 @@ impl<P, const N: u8> lpspi::Lpspi<P, N> {
     /// This call may block until space is available in the command queue. An error
     /// indicates that there was an issue preparing the transaction, or there was an
     /// issue waiting for space in the command queue.
-    pub fn dma_full_duplex<'a>(
+    pub fn dma_full_duplex<'a, const DMA_INST: u8>(
         &'a mut self,
-        rx: &'a mut Channel,
-        tx: &'a mut Channel,
+        rx: &'a mut crate::dma::channel::Channel<DMA_INST>,
+        tx: &'a mut crate::dma::channel::Channel<DMA_INST>,
         buffer: &'a mut [u32],
-    ) -> Result<peripheral::FullDuplex<'a, Self, u32>, lpspi::LpspiError> {
+    ) -> Result<peripheral::FullDuplex<'a, Self, u32, DMA_INST>, lpspi::LpspiError>
+    where
+        Self: crate::dma::WorksWith<DMA_INST>,
+    {
         let mut transaction = lpspi::Transaction::new_u32s(buffer)?;
         transaction.bit_order = self.bit_order();
 
