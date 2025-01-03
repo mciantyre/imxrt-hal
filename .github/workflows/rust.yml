@@ -86,7 +86,6 @@ jobs:
           --example=hal_uart --example=rtic_uart --example=rtic_dma_uart --example=async_dma_uart
           --example=hal_gpt --example=rtic_gpt
           --example=hal_pit --example=rtic_pit
-          --example=hal_logging --example=rtic_logging
           --example=hal_clock_out
           --example=hal_pwm --example=rtic_pwm
           --example=hal_i2c_mpu9250 --example=hal_i2c_lcd1602

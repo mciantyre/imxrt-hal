@@ -154,7 +154,6 @@ cortex-m = "0.7"
 imxrt-rt = { workspace = true }
 menu = "0.3.2"
 rtic = { version = "2.0", features = ["thumbv7-backend"] }
-log = "0.4"
 pin-utils = "0.1"
 usb-device = { version = "0.3", features = ["test-class-high-speed"] }
 usbd-serial = "0.2"
@@ -182,22 +181,6 @@ required-features = ["board/spi"]
 [[example]]
 name = "rtic_spi"
 required-features = ["board/spi"]
-
-[[example]]
-name = "hal_logging"
-required-features = ["board/imxrt-log"]
-
-[[example]]
-name = "hal_tempmon"
-required-features = ["board/imxrt-log"]
-
-[[example]]
-name = "hal_trng"
-required-features = ["board/imxrt-log"]
-
-[[example]]
-name = "rtic_logging"
-required-features = ["board/imxrt-log"]
 
 [[example]]
 name = "rtic_defmt_rtt"

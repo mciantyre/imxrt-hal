@@ -36,14 +36,6 @@ mod app {
     /// "test-class-high-speed" feature, which is enabled by default. See
     /// the top-level Cargo.toml.
     const SPEED: Speed = Speed::High;
-    /// How frequently should we poll the logger?
-    const LPUART_POLL_INTERVAL_MS: u32 = board::PIT_FREQUENCY / 1_000 * 100;
-    /// Change me to change how log messages are serialized.
-    ///
-    /// If changing to `Defmt`, you'll need to update the logging macros in
-    /// this example. You'll also need to make sure the USB device you're debugging
-    /// uses `defmt`.
-    const FRONTEND: board::logging::Frontend = board::logging::Frontend::Log;
 
     /// This allocation is shared across all USB endpoints. It needs to be large
     /// enough to hold the maximum packet size for *all* endpoints. If you start
@@ -59,8 +51,6 @@ mod app {
     struct Local {
         class: TestClass<'static, Bus>,
         device: UsbDevice<'static, Bus>,
-        poller: board::logging::Poller,
-        timer: hal::pit::Pit<0>,
     }
 
     #[shared]
@@ -70,21 +60,13 @@ mod app {
     fn init(ctx: init::Context) -> (Shared, Local) {
         let (
             board::Common {
-                pit: (mut timer, _, _, _),
                 usb1,
                 usbnc1,
                 usbphy1,
-                mut dma,
                 ..
             },
-            board::Specifics { console, .. },
+            board::Specifics { .. },
         ) = board::new();
-        timer.set_load_timer_value(LPUART_POLL_INTERVAL_MS);
-        timer.set_interrupt_enable(true);
-        timer.enable();
-
-        let dma_a = dma[board::BOARD_DMA_A_INDEX].take().unwrap();
-        let poller = board::logging::lpuart(FRONTEND, console, dma_a);
 
         let usbd = hal::usbd::Instances {
             usb: usb1,
@@ -103,24 +85,7 @@ mod app {
             .unwrap()
             .build();
 
-        (
-            Shared {},
-            Local {
-                class,
-                device,
-                poller,
-                timer,
-            },
-        )
-    }
-
-    /// Occasionally try to poll the logger.
-    #[task(binds = BOARD_PIT, local = [poller, timer], priority = 1)]
-    fn pit_interrupt(ctx: pit_interrupt::Context) {
-        while ctx.local.timer.is_elapsed() {
-            ctx.local.timer.clear_elapsed();
-        }
-        ctx.local.poller.poll();
+        (Shared {}, Local { class, device })
     }
 
     #[task(binds = BOARD_USB1, local = [class, device, configured: bool = false], priority = 2)]

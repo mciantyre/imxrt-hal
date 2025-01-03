@@ -42,14 +42,6 @@ mod app {
     /// Matches whatever is in imxrt-log.
     const VID_PID: UsbVidPid = UsbVidPid(0x5824, 0x27dd);
     const PRODUCT: &str = "imxrt-hal-example";
-    /// How frequently should we poll the logger?
-    const LPUART_POLL_INTERVAL_MS: u32 = board::PIT_FREQUENCY / 1_000 * 100;
-    /// Change me to change how log messages are serialized.
-    ///
-    /// If changing to `Defmt`, you'll need to update the logging macros in
-    /// this example. You'll also need to make sure the USB device you're debugging
-    /// uses `defmt`.
-    const FRONTEND: board::logging::Frontend = board::logging::Frontend::Log;
 
     /// This allocation is shared across all USB endpoints. It needs to be large
     /// enough to hold the maximum packet size for *all* endpoints. If you start
@@ -66,8 +58,6 @@ mod app {
         class: SerialPort<'static, Bus>,
         device: UsbDevice<'static, Bus>,
         led: board::Led,
-        poller: board::logging::Poller,
-        timer: hal::pit::Pit<0>,
     }
 
     #[shared]
@@ -77,21 +67,13 @@ mod app {
     fn init(ctx: init::Context) -> (Shared, Local) {
         let (
             board::Common {
-                pit: (mut timer, _, _, _),
                 usb1,
                 usbnc1,
                 usbphy1,
-                mut dma,
                 ..
             },
-            board::Specifics { led, console, .. },
+            board::Specifics { led, .. },
         ) = board::new();
-        timer.set_load_timer_value(LPUART_POLL_INTERVAL_MS);
-        timer.set_interrupt_enable(true);
-        timer.enable();
-
-        let dma_a = dma[board::BOARD_DMA_A_INDEX].take().unwrap();
-        let poller = board::logging::lpuart(FRONTEND, console, dma_a);
 
         let usbd = hal::usbd::Instances {
             usb: usb1,
@@ -112,25 +94,7 @@ mod app {
             .unwrap()
             .build();
 
-        (
-            Shared {},
-            Local {
-                class,
-                device,
-                led,
-                poller,
-                timer,
-            },
-        )
-    }
-
-    /// Occasionally try to poll the logger.
-    #[task(binds = BOARD_PIT, local = [poller, timer], priority = 1)]
-    fn pit_interrupt(ctx: pit_interrupt::Context) {
-        while ctx.local.timer.is_elapsed() {
-            ctx.local.timer.clear_elapsed();
-        }
-        ctx.local.poller.poll();
+        (Shared {}, Local { class, device, led })
     }
 
     #[task(binds = BOARD_USB1, local = [class, device, led, configured: bool = false], priority = 2)]
@@ -155,13 +119,13 @@ mod app {
                     Ok(count) => {
                         led.toggle();
                         class.write(&buffer[..count]).ok();
-                        log::info!(
+                        defmt::info!(
                             "Received '{}' from the host",
                             core::str::from_utf8(&buffer[..count]).unwrap_or("???")
                         );
                     }
                     Err(usb_device::UsbError::WouldBlock) => {}
-                    Err(err) => log::error!("{:?}", err),
+                    Err(err) => defmt::error!("{:?}", err),
                 }
             } else {
                 *configured = false;

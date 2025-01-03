@@ -24,11 +24,6 @@ workspace = true
 [build-dependencies.imxrt-rt]
 workspace = true
 
-[dependencies.imxrt-log]
-workspace = true
-optional = true
-default-features = false
-
 [dependencies.imxrt-usbd]
 workspace = true
 features = ["defmt-03"]
@@ -100,7 +95,6 @@ imxrt1010evk = [
     "imxrt1010evk-fcb",
     "defmt-rtt",
     "panic-probe",
-    "imxrt-log",
 ]
 imxrt1060evk = [
     "imxrt-iomuxc/imxrt1060",
@@ -109,7 +103,6 @@ imxrt1060evk = [
     "imxrt1060evk-fcb",
     "defmt-rtt",
     "panic-probe",
-    "imxrt-log",
 ]
 teensy4 = [
     "imxrt-iomuxc/imxrt1060",
@@ -117,8 +110,6 @@ teensy4 = [
     "imxrt-hal/imxrt1060",
     "teensy4-fcb",
     "teensy4-panic",
-    "imxrt-log",
-    "logging-defmt",
 ]
 imxrt1170evk-cm7 = [
     "imxrt-iomuxc/imxrt1170",
@@ -127,7 +118,6 @@ imxrt1170evk-cm7 = [
     "imxrt1170evk-fcb",
     "defmt-rtt",
     "panic-probe",
-    "imxrt-log",
 ]
 imxrt1180evk-cm33 = [
     "imxrt-iomuxc/imxrt1180",
@@ -137,7 +127,6 @@ imxrt1180evk-cm33 = [
     "defmt-rtt",
     "panic-probe",
 ]
-logging-defmt = ["imxrt-log/defmt"]
 
 # Some boards (Teensy 4) require a resource
 # configuration to enable the (easily accessible)

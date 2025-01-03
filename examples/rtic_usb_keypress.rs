@@ -25,14 +25,6 @@ mod app {
     /// Matches whatever is in imxrt-log.
     const VID_PID: UsbVidPid = UsbVidPid(0x5824, 0x27dd);
     const PRODUCT: &str = "imxrt-hal-example";
-    /// How frequently should we poll the logger?
-    const LPUART_POLL_INTERVAL_MS: u32 = board::PIT_FREQUENCY / 1_000 * 100;
-    /// Change me to change how log messages are serialized.
-    ///
-    /// If changing to `Defmt`, you'll need to update the logging macros in
-    /// this example. You'll also need to make sure the USB device you're debugging
-    /// uses `defmt`.
-    const FRONTEND: board::logging::Frontend = board::logging::Frontend::Log;
     /// The USB GPT timer we use to (infrequently) send mouse updates.
     const GPT_INSTANCE: imxrt_usbd::gpt::Instance = imxrt_usbd::gpt::Instance::Gpt0;
     /// How frequently should we push mouse updates to the host?
@@ -57,8 +49,6 @@ mod app {
         class: HIDClass<'static, Bus>,
         device: UsbDevice<'static, Bus>,
         led: board::Led,
-        poller: board::logging::Poller,
-        timer: hal::pit::Pit<0>,
         message: MessageIter,
     }
 
@@ -69,21 +59,13 @@ mod app {
     fn init(ctx: init::Context) -> (Shared, Local) {
         let (
             board::Common {
-                pit: (mut timer, _, _, _),
                 usb1,
                 usbnc1,
                 usbphy1,
-                mut dma,
                 ..
             },
-            board::Specifics { led, console, .. },
+            board::Specifics { led, .. },
         ) = board::new();
-        timer.set_load_timer_value(LPUART_POLL_INTERVAL_MS);
-        timer.set_interrupt_enable(true);
-        timer.enable();
-
-        let dma_a = dma[board::BOARD_DMA_A_INDEX].take().unwrap();
-        let poller = board::logging::lpuart(FRONTEND, console, dma_a);
 
         let usbd = hal::usbd::Instances {
             usb: usb1,
@@ -121,20 +103,9 @@ mod app {
                 class,
                 device,
                 led,
-                poller,
-                timer,
                 message: MESSAGE.iter().cycle(),
             },
         )
-    }
-
-    #[task(binds = BOARD_PIT, local = [poller, timer], priority = 1)]
-    fn pit_interrupt(ctx: pit_interrupt::Context) {
-        while ctx.local.timer.is_elapsed() {
-            ctx.local.timer.clear_elapsed();
-        }
-
-        ctx.local.poller.poll();
     }
 
     #[task(binds = BOARD_USB1, local = [device, class, led, message, configured: bool = false], priority = 2)]
@@ -203,7 +174,7 @@ mod app {
             }
             b' ' => simple_kr(0, [0x2c, 0, 0, 0, 0, 0]),
             _ => {
-                log::error!("Unsupported character '{}'", ch);
+                defmt::error!("Unsupported character '{}'", ch);
                 None
             }
         }

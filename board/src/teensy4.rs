@@ -22,9 +22,6 @@ mod imxrt10xx {
 
 pub use imxrt10xx::clock::*;
 
-/// You'll find log messages using USB1, the same USB that you use for programming.
-pub(crate) const DEFAULT_LOGGING_BACKEND: crate::logging::Backend = crate::logging::Backend::Usbd;
-
 #[cfg(not(feature = "spi"))]
 /// The board LED.
 pub type Led = hal::gpio::Output<iomuxc::gpio_b0::GPIO_B0_03>;
@@ -321,3 +318,18 @@ pub mod interrupt {
     ];
 }
 pub use interrupt as Interrupt;
+
+//
+// TODO: Output defmt frames over an available peripheral.
+// LPUART6 on pins 0 and 1 could work.
+//
+
+#[defmt::global_logger]
+struct Logger;
+
+unsafe impl defmt::Logger for Logger {
+    fn acquire() {}
+    unsafe fn flush() {}
+    unsafe fn release() {}
+    unsafe fn write(_: &[u8]) {}
+}
