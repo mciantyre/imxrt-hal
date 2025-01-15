@@ -99,7 +99,7 @@ imxrt1020 = ["imxrt-iomuxc/imxrt1020"]
 imxrt1060 = ["imxrt-iomuxc/imxrt1060"]
 imxrt1064 = ["imxrt-iomuxc/imxrt1060"]
 imxrt1170 = ["imxrt-iomuxc/imxrt1170"]
-imxrt1180 = ["imxrt-iomuxc/imxrt1180"]
+imxrt1180 = ["imxrt-iomuxc/imxrt1180", "imxrt-dma/edma34"]
 
 ################
 # Extra features
@@ -217,3 +217,7 @@ git = "https://github.com/imxrt-rs/imxrt-ral"
 
 [patch.crates-io.imxrt-iomuxc]
 git = "https://github.com/imxrt-rs/imxrt-iomuxc"
+
+[patch.crates-io.imxrt-dma]
+git = "https://github.com/mciantyre/imxrt-dma"
+branch = "proto/edma34-const-gen-dma-inst"

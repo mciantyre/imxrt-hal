@@ -91,9 +91,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     16 * 1024 * 1024,
                 )
                 .rodata(imxrt_rt::Memory::Dtcm)
+                .stack(imxrt_rt::Memory::Ocram)
                 .build()?;
                 println!("cargo:rustc-cfg=board=\"imxrt1180evk-cm33\"");
                 println!("cargo:rustc-cfg=chip=\"imxrt1180\"");
+
+                cc::Build::new()
+                    .object("ele_base_api.o")
+                    .object("s3mu.o")
+                    .compile("fsl");
             }
             _ => continue,
         }

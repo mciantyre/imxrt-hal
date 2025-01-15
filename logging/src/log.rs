@@ -19,7 +19,7 @@ use filters::Filters;
 use crate::{Poller, BUFFER};
 
 #[cfg(feature = "lpuart")]
-use imxrt_hal::{dma::channel::Channel, lpuart::Lpuart};
+use imxrt_hal::{dma::Channel, lpuart::Lpuart};
 
 /// Logging configuration
 ///
