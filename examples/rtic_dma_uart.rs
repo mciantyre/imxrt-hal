@@ -47,7 +47,7 @@ mod app {
 
         unsafe {
             // Safety: buffer is static.
-            dma_receive(&mut channel, &mut console, &mut cx.local.buf[..1]);
+            dma_receive(&mut channel, &mut console, &mut cx.local.buf[..2]);
         }
         (
             Shared {},
@@ -85,8 +85,12 @@ mod app {
         match state {
             State::Receiving => {
                 // Completed receive operation.
-                let recv = buffer[0];
-                buffer.fill(recv);
+                let fst = buffer[0];
+                let snd = buffer[1];
+                for pairs in buffer.chunks_exact_mut(2) {
+                    pairs[0] = fst;
+                    pairs[1] = snd;
+                }
                 unsafe {
                     // Safety: buffer is static
                     dma_transfer(channel, console, buffer);
@@ -96,7 +100,7 @@ mod app {
             State::Transfering => {
                 unsafe {
                     // Safety: buffer is static.
-                    dma_receive(channel, console, &mut buffer[..1]);
+                    dma_receive(channel, console, &mut buffer[..2]);
                 }
                 *state = State::Receiving;
                 led.toggle();

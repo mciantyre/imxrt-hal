@@ -23,11 +23,15 @@ fn main() -> ! {
         loop {
             led.toggle();
 
-            let mut buffer = [0u8; 1];
-            console.dma_read(&mut channel, &mut buffer).await.unwrap();
+            let mut receive = [0u8; 2];
+            console.dma_read(&mut channel, &mut receive).await.unwrap();
 
-            let buffer = [buffer[0]; 32];
-            console.dma_write(&mut channel, &buffer).await.unwrap();
+            let mut transmit = [0; 32];
+            for pairs in transmit.chunks_exact_mut(2) {
+                pairs[0] = receive[0];
+                pairs[1] = receive[1];
+            }
+            console.dma_write(&mut channel, &transmit).await.unwrap();
         }
     };
     pin_utils::pin_mut!(task);
