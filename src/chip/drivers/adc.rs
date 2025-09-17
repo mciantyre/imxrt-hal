@@ -337,8 +337,10 @@ impl<P, const N: u8> DmaSource<P, N> {
     ///
     /// You should use this pointer when coordinating a DMA transfer.
     /// You're not expected to explicitly read from this pointer in software.
-    pub fn r0(&self) -> *const ral::RORegister<u32> {
-        core::ptr::addr_of!(self.adc.reg.R0)
+    pub fn r0(&self) -> *const u32 {
+        // Safety: imxrt-ral requires that users construct a valid
+        // pointer to MMIO register block.
+        unsafe { core::ptr::addr_of!((*self.adc.reg.as_ptr()).R0) }
     }
 
     /// Enable the ADC's DMA support.

@@ -219,7 +219,8 @@ impl Trng {
         if (mctl & trng::MCTL::ENT_VAL::mask) == 0 {
             return Err(nb::Error::WouldBlock); // not ready to read entropy
         }
-        for idx in 0..self.reg.ENT.len() {
+        let len = unsafe { &raw const (*self.reg.as_ptr()).ENT }.len();
+        for idx in 0..len {
             self.block[idx] = read_reg!(trng, self.reg, ENT[idx]);
         }
 

@@ -157,26 +157,30 @@ const fn locator(register: Register, gate: Gate) -> Locator {
 
 /// Acquire the clock gate register for a clock gate locator.
 #[inline(always)]
-fn clock_gate_register(ccm: &CCM, register: Register) -> &ral::RWRegister<u32> {
-    match register {
-        Register::CCGR0 => &ccm.CCGR0,
-        Register::CCGR1 => &ccm.CCGR1,
-        Register::CCGR2 => &ccm.CCGR2,
-        Register::CCGR3 => &ccm.CCGR3,
-        Register::CCGR4 => &ccm.CCGR4,
-        Register::CCGR5 => &ccm.CCGR5,
-        Register::CCGR6 => &ccm.CCGR6,
-        Register::CCGR7 => {
-            // If we're compiling this code, it's because a chip feature
-            // is activated.
-            cfg_if::cfg_if! {
-                if #[cfg(any(chip = "imxrt1060", chip = "imxrt1064"))] {
-                    // Only certain i.MX RT 10xx chips have CCGR7.
-                    &ccm.CCGR7
-                } else {
-                    // The RAL's 'Valid' trait ensures that no clock gate locator
-                    // with this clock gate register is reachable.
-                    unreachable!()
+fn clock_gate_register(ccm: &CCM, register: Register) -> *mut u32 {
+    // Safety: imxrt-ral requires that the user creates a CCM
+    // instance with a valid pointer.
+    unsafe {
+        match register {
+            Register::CCGR0 => &raw mut (*ccm.as_ptr()).CCGR0,
+            Register::CCGR1 => &raw mut (*ccm.as_ptr()).CCGR1,
+            Register::CCGR2 => &raw mut (*ccm.as_ptr()).CCGR2,
+            Register::CCGR3 => &raw mut (*ccm.as_ptr()).CCGR3,
+            Register::CCGR4 => &raw mut (*ccm.as_ptr()).CCGR4,
+            Register::CCGR5 => &raw mut (*ccm.as_ptr()).CCGR5,
+            Register::CCGR6 => &raw mut (*ccm.as_ptr()).CCGR6,
+            Register::CCGR7 => {
+                // If we're compiling this code, it's because a chip feature
+                // is activated.
+                cfg_if::cfg_if! {
+                    if #[cfg(any(chip = "imxrt1060", chip = "imxrt1064"))] {
+                        // Only certain i.MX RT 10xx chips have CCGR7.
+                        &raw mut (*ccm.as_ptr()).CCGR7
+                    } else {
+                        // The RAL's 'Valid' trait ensures that no clock gate locator
+                        // with this clock gate register is reachable.
+                        unreachable!()
+                    }
                 }
             }
         }
@@ -186,18 +190,27 @@ fn clock_gate_register(ccm: &CCM, register: Register) -> &ral::RWRegister<u32> {
 impl Locator {
     /// Get the clock gate setting for the peripheral.
     pub fn get(&self, ccm: &CCM) -> Setting {
-        let ccgr = clock_gate_register(ccm, self.register);
-        let raw = (ccgr.read() >> self.gate.shift()) & 0b11;
-        Setting::from_raw(raw)
+        // Safety: read from MMIO register without side effect.
+        // Pointer is valid per clock_gate_register.
+        unsafe {
+            let ccgr = clock_gate_register(ccm, self.register);
+            let raw = (ccgr.read_volatile() >> self.gate.shift()) & 0b11;
+            Setting::from_raw(raw)
+        }
     }
 
     /// Set the clock gate for this peripheral.
     pub fn set(&self, ccm: &mut CCM, setting: Setting) {
-        let ccgr = clock_gate_register(ccm, self.register);
-        let mut raw = ccgr.read();
-        raw &= !(0b11 << self.gate.shift());
-        raw |= (setting as u32) << self.gate.shift();
-        ccgr.write(raw);
+        // Safety: read-modify-write with MMIO register assumed to
+        // happen in single execution context. Pointers valid per
+        // clock_gate_register.
+        unsafe {
+            let ccgr = clock_gate_register(ccm, self.register);
+            let mut raw = ccgr.read_volatile();
+            raw &= !(0b11 << self.gate.shift());
+            raw |= (setting as u32) << self.gate.shift();
+            ccgr.write_volatile(raw);
+        }
     }
 }
 

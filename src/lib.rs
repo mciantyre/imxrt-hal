@@ -269,10 +269,10 @@ pub mod usbd {
     // from aliasing the peripherals.
     unsafe impl<const N: u8> Peripherals for Instances<N> {
         fn usb(&self) -> *const () {
-            (&*self.usb as *const ral::usb::RegisterBlock).cast()
+            self.usb.as_ptr().cast_const().cast()
         }
         fn usbphy(&self) -> *const () {
-            (&*self.usbphy as *const ral::usbphy::RegisterBlock).cast()
+            self.usbphy.as_ptr().cast_const().cast()
         }
     }
 }

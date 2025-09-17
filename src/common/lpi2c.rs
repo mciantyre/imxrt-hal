@@ -621,20 +621,22 @@ impl ControllerCommand {
     /// Turn a command into its raw representation, permitting
     /// 32-bit writes to the transmit data register.
     const fn raw(self) -> u32 {
-        use crate::ral::lpi2c::MTDR::CMD::{offset as OFFSET, RW::*};
+        use crate::ral::lpi2c::MTDR::CMD::{offset as OFFSET, vals};
         match self {
-            Self::Transmit { byte } => (CMD_0 << OFFSET) | byte as u32,
-            Self::Receive { count } => (CMD_1 << OFFSET) | count.saturating_sub(1) as u32,
-            Self::Stop => CMD_2 << OFFSET,
-            Self::ReceiveAndDiscard { drop } => (CMD_3 << OFFSET) | drop.saturating_sub(1) as u32,
+            Self::Transmit { byte } => (vals::CMD_0 << OFFSET) | byte as u32,
+            Self::Receive { count } => (vals::CMD_1 << OFFSET) | count.saturating_sub(1) as u32,
+            Self::Stop => vals::CMD_2 << OFFSET,
+            Self::ReceiveAndDiscard { drop } => {
+                (vals::CMD_3 << OFFSET) | drop.saturating_sub(1) as u32
+            }
             Self::Start {
                 expect: Response::Ack,
                 addr,
-            } => (CMD_4 << OFFSET) | addr as u32,
+            } => (vals::CMD_4 << OFFSET) | addr as u32,
             Self::Start {
                 expect: Response::Nack,
                 addr,
-            } => (CMD_5 << OFFSET) | addr as u32,
+            } => (vals::CMD_5 << OFFSET) | addr as u32,
         }
     }
 }

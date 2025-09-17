@@ -444,16 +444,6 @@ struct CcrCache {
 }
 
 impl CcrCache {
-    /// Reac the clock configuration values, considering the cached values.
-    fn read_ccr(&self, lpspi: &ral::lpspi::RegisterBlock) -> ClockConfigs {
-        let (sckpcs, pcssck) = ral::read_reg!(ral::lpspi, lpspi, CCR, SCKPCS, PCSSCK);
-        ClockConfigs {
-            sckpcs: sckpcs as u8,
-            pcssck: pcssck as u8,
-            dbt: self.dbt,
-            sckdiv: self.sckdiv,
-        }
-    }
     /// Update the cached values.
     fn update(&mut self, clock_configs: ClockConfigs) {
         self.dbt = clock_configs.dbt;
@@ -966,16 +956,20 @@ impl<P, const N: u8> Lpspi<P, N> {
     ///
     /// You should use this pointer when coordinating a DMA transfer.
     /// You're not expected to read from this pointer in software.
-    pub fn rdr(&self) -> *const ral::RORegister<u32> {
-        core::ptr::addr_of!(self.lpspi.RDR)
+    pub fn rdr(&self) -> *const u32 {
+        // Safety: imxrt-ral's safety contract requires valid
+        // pointers to MMIO.
+        unsafe { core::ptr::addr_of!((*self.lpspi.as_ptr()).RDR) }
     }
 
     /// Produces a pointer to the transfer data register.
     ///
     /// You should use this pointer when coordinating a DMA transfer.
     /// You're not expected to read from this pointer in software.
-    pub fn tdr(&self) -> *const ral::WORegister<u32> {
-        core::ptr::addr_of!(self.lpspi.TDR)
+    pub fn tdr(&self) -> *const u32 {
+        // Safety: imxrt-ral's safety contract requires valid
+        // pointers to MMIO.
+        unsafe { core::ptr::addr_of!((*self.lpspi.as_ptr()).TDR) }
     }
 
     fn max_watermark(&self, direction: Direction) -> u8 {
@@ -1036,7 +1030,23 @@ impl<P, const N: u8> Lpspi<P, N> {
     /// the number of words in the transmit FIFO is less than, or equal, to `watermark`.
     #[inline]
     pub fn set_watermark(&mut self, direction: Direction, watermark: u8) -> u8 {
-        set_watermark(&self.lpspi, direction, watermark)
+        let max_watermark = match direction {
+            Direction::Rx => 1 << ral::read_reg!(ral::lpspi, self.lpspi, PARAM, RXFIFO),
+            Direction::Tx => 1 << ral::read_reg!(ral::lpspi, self.lpspi, PARAM, TXFIFO),
+        };
+
+        let watermark = watermark.min(max_watermark - 1);
+
+        match direction {
+            Direction::Rx => {
+                ral::modify_reg!(ral::lpspi, self.lpspi, FCR, RXWATER: watermark as u32)
+            }
+            Direction::Tx => {
+                ral::modify_reg!(ral::lpspi, self.lpspi, FCR, TXWATER: watermark as u32)
+            }
+        }
+
+        watermark
     }
 
     /// Recover from a transaction error.
@@ -1053,7 +1063,13 @@ impl<P, const N: u8> Lpspi<P, N> {
     /// These values are decided by calls to [`set_clock_hz`](Disabled::set_clock_hz)
     /// and [`set_clock_configs`](Disabled::set_clock_configs).
     pub fn clock_configs(&self) -> ClockConfigs {
-        self.ccr_cache.read_ccr(&self.lpspi)
+        let (sckpcs, pcssck) = ral::read_reg!(ral::lpspi, lpspi, CCR, SCKPCS, PCSSCK);
+        ClockConfigs {
+            sckpcs: sckpcs as u8,
+            pcssck: pcssck as u8,
+            dbt: self.ccr_cache.dbt,
+            sckdiv: self.ccr_cache.sckdiv,
+        }
     }
 
     /// Produce a transaction that considers bus-managed software state.
@@ -1195,27 +1211,6 @@ bitflags::bitflags! {
         /// Transmit data interrupt enable.
         const TRANSMIT_DATA = 1 << 0;
     }
-}
-
-#[inline]
-fn set_watermark(lpspi: &ral::lpspi::RegisterBlock, direction: Direction, watermark: u8) -> u8 {
-    let max_watermark = match direction {
-        Direction::Rx => 1 << ral::read_reg!(ral::lpspi, lpspi, PARAM, RXFIFO),
-        Direction::Tx => 1 << ral::read_reg!(ral::lpspi, lpspi, PARAM, TXFIFO),
-    };
-
-    let watermark = watermark.min(max_watermark - 1);
-
-    match direction {
-        Direction::Rx => {
-            ral::modify_reg!(ral::lpspi, lpspi, FCR, RXWATER: watermark as u32)
-        }
-        Direction::Tx => {
-            ral::modify_reg!(ral::lpspi, lpspi, FCR, TXWATER: watermark as u32)
-        }
-    }
-
-    watermark
 }
 
 /// An LPSPI peripheral which is temporarily disabled.

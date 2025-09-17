@@ -328,8 +328,10 @@ impl<P, const N: u8> Lpuart<P, N> {
     ///
     /// You should use this pointer when coordinating a DMA transfer.
     /// You're not expected to read from this pointer in software.
-    pub fn data(&self) -> *const ral::RWRegister<u32> {
-        core::ptr::addr_of!(self.lpuart.DATA)
+    pub fn data(&self) -> *const u32 {
+        // Safety: imxrt-ral requires that users form instances
+        // with valid MMIO pointers.
+        unsafe { core::ptr::addr_of!((*self.lpuart.as_ptr()).DATA) }
     }
 
     /// Let the peripheral act as a DMA source.
