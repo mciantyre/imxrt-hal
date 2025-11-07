@@ -48,6 +48,7 @@ pub(crate) unsafe fn configure() {
 }
 
 fn prepare_clock_tree(ccm: &mut ral::ccm::CCM) {
+    clock_tree::configure_m7_systick(RUN_MODE, ccm);
     clock_tree::configure_bus(RUN_MODE, ccm);
     clock_tree::configure_gpt::<1>(RUN_MODE, ccm);
     clock_tree::configure_gpt::<2>(RUN_MODE, ccm);
@@ -163,6 +164,7 @@ pub struct Specifics {
     pub spi: Spi,
     pub pwm: Pwm,
     pub i2c: I2c,
+    pub usb_host: hal::usbh::HostController<2>,
 }
 
 impl Specifics {
@@ -255,6 +257,12 @@ impl Specifics {
             )
         };
 
+        let usb_host = hal::usbh::HostController::new(
+            unsafe { ral::usb::USB2::instance() },
+            unsafe { ral::usbphy::USBPHY2::instance() },
+            unsafe { ral::usbnc::USBNC2::instance() },
+        );
+
         Self {
             led,
             console,
@@ -265,6 +273,7 @@ impl Specifics {
             spi,
             pwm,
             i2c,
+            usb_host,
         }
     }
 }

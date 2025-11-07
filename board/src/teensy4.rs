@@ -133,6 +133,7 @@ pub struct Specifics {
     pub pwm: Pwm,
     pub trng: hal::trng::Trng,
     pub tempmon: hal::tempmon::TempMon,
+    pub usb_host: hal::usbh::HostController<2>,
 }
 
 impl Specifics {
@@ -241,6 +242,11 @@ impl Specifics {
             unsafe { ral::tempmon::TEMPMON::instance() },
             0x1000,
         );
+        let usb_host = hal::usbh::HostController::new(
+            unsafe { ral::usb::USB2::instance() },
+            unsafe { ral::usbphy::USBPHY2::instance() },
+            unsafe { ral::usbnc::USBNC2::instance() },
+        );
         Self {
             led,
             button,
@@ -252,6 +258,7 @@ impl Specifics {
             pwm,
             trng,
             tempmon,
+            usb_host,
         }
     }
 }

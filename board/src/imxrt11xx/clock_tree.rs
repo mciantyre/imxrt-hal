@@ -263,3 +263,19 @@ where
     // LPSPI6 -> CLOCK_ROOT48
     configure_clock_root(N as usize + 42, &lpspi_selection::<N>(run_mode), ccm);
 }
+
+/// Set the M7 SYSTICK external source to 100kHz.
+///
+/// This "external" SYSTICK frequency matches the fixed external
+/// frequency on the 1000 series MCUs.
+pub fn configure_m7_systick(_: RunMode, ccm: &mut CCM) {
+    configure_clock_root(
+        8,
+        &Selection {
+            mux: 0b001,
+            source: ClockSource::XtalOsc24MHz,
+            divider: 240,
+        },
+        ccm,
+    );
+}

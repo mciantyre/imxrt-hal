@@ -277,6 +277,12 @@ pub mod usbd {
     }
 }
 
+/// USB host driver.
+#[cfg(feature = "imxrt-usbh")]
+pub mod usbh {
+    pub use imxrt_usbh::*;
+}
+
 /// Pad muxing and configurations.
 ///
 /// This module re-exports select items from the `imxrt-iomuxc` crate. When a chip feature is enabled, the module also exports

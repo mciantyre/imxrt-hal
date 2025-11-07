@@ -306,6 +306,26 @@ pub mod blocking {
     }
 }
 
+/// Selects the "best" defmt transport for the board.
+///
+/// For all EVKs, this is RTT, and the call is a no-op.
+/// For the Teensy 4, this is USB device logging. Sorry,
+/// you'll always lose your USB device instances.
+pub mod defmt_transport {
+    use crate::hal::usbd::Instances;
+    pub use imxrt_log::Poller;
+
+    #[cfg(board = "teensy4")]
+    pub fn init<const USBD: u8>(usbd: Instances<USBD>) -> Option<Poller> {
+        Some(imxrt_log::defmt::usbd(usbd, imxrt_log::Interrupts::Enabled).unwrap())
+    }
+
+    #[cfg(not(board = "teensy4"))]
+    pub fn init<const USBD: u8>(_: Instances<USBD>) -> Option<Poller> {
+        None
+    }
+}
+
 /// Configurations for the logger.
 ///
 /// If your board is ready to support the logging infrastructure,
