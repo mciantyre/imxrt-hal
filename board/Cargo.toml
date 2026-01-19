@@ -117,6 +117,7 @@ imxrt1060evk = [
     "imxrt-log",
 ]
 teensy4 = [
+    "flexio",
     "sai",
     "imxrt-iomuxc/imxrt1060",
     "imxrt-ral/imxrt1062",
@@ -127,6 +128,7 @@ teensy4 = [
     "logging-defmt",
 ]
 imxrt1170evk-cm7 = [
+    "flexio",
     "imxrt-iomuxc/imxrt1170",
     "imxrt-ral/imxrt1176_cm7",
     "imxrt-hal/imxrt1170",
@@ -168,5 +170,8 @@ spi = []
 # Only enable this feature if your board supports
 # it.
 sai = []
+# Same here, but for FlexIO. Add to your board if
+# your board exposes the I/O.
+flexio = []
 
 lcd1602 = ["dep:lcd_1602_i2c"]

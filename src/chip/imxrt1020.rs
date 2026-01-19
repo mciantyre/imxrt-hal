@@ -4,8 +4,8 @@
 //! 1020 chips.
 
 pub use drivers::{
-    adc, ccm_10xx as ccm, dcdc, dma, gpio, iomuxc_10xx as iomuxc, ocotp, pit, sai, snvs, tempmon,
-    trng,
+    adc, ccm_10xx as ccm, dcdc, dma, flexio, gpio, iomuxc_10xx as iomuxc, ocotp, pit, sai, snvs,
+    tempmon, trng,
 };
 
 #[macro_use]
@@ -13,6 +13,7 @@ mod drivers {
     pub mod adc;
     pub mod dcdc;
     pub mod dma;
+    pub mod flexio;
     pub mod gpio;
     pub mod ocotp;
     pub mod pit;
@@ -31,6 +32,15 @@ mod drivers {
 #[path = "drivers"]
 pub(crate) mod config {
     pub use imxrt_iomuxc::imxrt1020 as pads;
+
+    #[path = "flexio"]
+    pub(crate) mod flexio {
+        mod shifter8;
+        mod timer8;
+
+        pub use shifter8::*;
+        pub use timer8::*;
+    }
 
     #[path = "ccm_10xx"]
     pub(crate) mod ccm {

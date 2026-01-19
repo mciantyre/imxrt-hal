@@ -1,4 +1,4 @@
-pub use drivers::{ccm_118x as ccm, rgpio};
+pub use drivers::{ccm_118x as ccm, flexio, rgpio};
 
 pub(crate) mod iomuxc {
     pub use super::config::pads;
@@ -20,9 +20,20 @@ pub mod dma {
 
 mod drivers {
     pub mod ccm_118x;
+    pub mod flexio;
     pub mod rgpio;
 }
 
-mod config {
+#[path = "drivers"]
+pub(crate) mod config {
     pub use imxrt_iomuxc::imxrt1180 as pads;
+
+    #[path = "flexio"]
+    pub(crate) mod flexio {
+        mod shifter8;
+        mod timer8;
+
+        pub use shifter8::*;
+        pub use timer8::*;
+    }
 }
