@@ -100,6 +100,7 @@ mod common {
     pub use imxrt_dma as dma;
 
     pub mod ccm;
+    pub mod flexio;
     pub mod flexpwm;
     pub mod gpt;
     pub mod lpi2c;
@@ -109,7 +110,7 @@ mod common {
 
 // These common drivers have no associated chip APIs, so
 // export them directly.
-pub use common::{flexpwm, gpt, lpi2c, lpspi, lpuart};
+pub use common::{flexio, flexpwm, gpt, lpi2c, lpspi, lpuart};
 
 /// Clock control module.
 ///

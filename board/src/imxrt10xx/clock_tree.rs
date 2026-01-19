@@ -13,7 +13,8 @@
 pub(crate) use super::ahb::{ahb_frequency, configure_ahb_ipg};
 use crate::{
     hal::ccm::{
-        analog, clock_gate, lpi2c_clk, lpspi_clk, perclk_clk, sai_clk, uart_clk, XTAL_OSCILLATOR_HZ,
+        analog, clock_gate, flexio1_clk, lpi2c_clk, lpspi_clk, perclk_clk, sai_clk, uart_clk,
+        XTAL_OSCILLATOR_HZ,
     },
     ral::ccm::CCM,
     RunMode,
@@ -138,6 +139,38 @@ const fn sai_selection(_n: u8, run_mode: RunMode) -> sai_clk::Selection {
     }
 }
 
+/// Returns the FLEXIO1 divider.
+const fn flexio1_divider(run_mode: RunMode) -> u32 {
+    match run_mode {
+        RunMode::Overdrive => 2,
+    }
+}
+
+/// Returns the FLEXIO1 predivider.
+const fn flexio1_predivider(run_mode: RunMode) -> u32 {
+    match run_mode {
+        RunMode::Overdrive => 2,
+    }
+}
+
+/// The FLEXIO1 clock selection.
+const fn flexio1_selection(run_mode: RunMode) -> flexio1_clk::Selection {
+    match run_mode {
+        RunMode::Overdrive => flexio1_clk::Selection::Pll3SwClk,
+    }
+}
+
+/// Computes the FLEXIO1 frequency.
+pub const fn flexio1_frequency(run_mode: RunMode) -> u32 {
+    let root = match run_mode {
+        RunMode::Overdrive => analog::pll3::FREQUENCY,
+    };
+
+    root / flexio1_predivider(run_mode) / flexio1_divider(run_mode)
+}
+
+const _: () = assert!(flexio1_frequency(RunMode::Overdrive) == 120_000_000); // Max supported.
+
 /// Configure the PERCLK root clock.
 ///
 /// When this call returns, the PERCLK clock frequency match the values
@@ -212,4 +245,17 @@ pub fn configure_lpi2c(run_mode: RunMode, ccm: &mut CCM) {
         .for_each(|locator| locator.set(ccm, clock_gate::OFF));
     lpi2c_clk::set_selection(ccm, lpi2c_selection(run_mode));
     lpi2c_clk::set_divider(ccm, lpi2c_divider(run_mode));
+}
+
+/// Configure the FLEXIO1 root clock.
+///
+/// When this call returns, the FLEXIO1 clock frequency matches the
+/// value return by the [`flexio1_frequency()`] function.
+///
+/// This disables the FLEXIO1 clock gate, and it may leave it disabled.
+pub fn configure_flexio1(run_mode: RunMode, ccm: &mut CCM) {
+    clock_gate::flexio::<1>().set(ccm, clock_gate::OFF);
+    flexio1_clk::set_selection(ccm, flexio1_selection(run_mode));
+    flexio1_clk::set_divider(ccm, flexio1_divider(run_mode));
+    flexio1_clk::set_predivider(ccm, flexio1_predivider(run_mode));
 }

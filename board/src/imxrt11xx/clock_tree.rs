@@ -263,3 +263,28 @@ where
     // LPSPI6 -> CLOCK_ROOT48
     configure_clock_root(N as usize + 42, &lpspi_selection::<N>(run_mode), ccm);
 }
+
+const fn flexio_selection<const N: u8>(run_mode: RunMode) -> Selection {
+    match run_mode {
+        RunMode::Overdrive => Selection {
+            mux: 0b001,
+            source: ClockSource::XtalOsc24MHz,
+            divider: 1,
+        },
+    }
+}
+
+/// Returns the FLEXIO root clock frequency, in Hz.
+pub const fn flexio_frequency<const N: u8>(run_mode: RunMode) -> u32 {
+    flexio_selection::<N>(run_mode).frequency(run_mode)
+}
+
+const _: () = assert!(flexio_frequency::<2>(RunMode::Overdrive) == 24_000_000);
+
+/// Configure the FLEXIO2 clock to reach [`flexio_frequency`].
+pub fn configure_flexio<const N: u8>(run_mode: RunMode, ccm: &mut CCM)
+where
+    ral::flexio::Instance<N>: ral::Valid,
+{
+    configure_clock_root(13, &flexio_selection::<N>(run_mode), ccm);
+}

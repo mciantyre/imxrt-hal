@@ -88,6 +88,19 @@ pub type I2cPins = hal::lpi2c::Pins<I2cScl, I2cSda>;
 const I2C_INSTANCE: u8 = 1;
 pub type I2c = hal::lpi2c::Lpi2c;
 
+/// FlexIO components.
+pub mod flexio {
+    use super::iomuxc;
+    pub use crate::hal::flexio::*;
+
+    pub(super) const N: u8 = 1;
+
+    pub type Pin2 = iomuxc::gpio_emc::GPIO_EMC_04; // P2
+    pub type Pin3 = iomuxc::gpio_emc::GPIO_EMC_05; // P3
+    pub type Pin4 = iomuxc::gpio_emc::GPIO_EMC_06; // P4
+    pub type Pin5 = iomuxc::gpio_emc::GPIO_EMC_08; // P5
+}
+
 /// PWM components.
 pub mod pwm {
     use super::iomuxc;
@@ -130,6 +143,7 @@ pub struct Specifics {
     pub pwm: pwm::Pwm,
     pub trng: hal::trng::Trng,
     pub tempmon: hal::tempmon::TempMon,
+    pub flexio: (flexio::FlexIo, [flexio::Pin; 4]),
 }
 
 impl Specifics {
@@ -234,6 +248,23 @@ impl Specifics {
             unsafe { ral::tempmon::TEMPMON::instance() },
             0x1000,
         );
+        let flexio = {
+            let flexio1 = unsafe { ral::flexio::FLEXIO1::instance() };
+            let flexio1 = hal::flexio::FlexIo::new(flexio1);
+            let pin2 = flexio1
+                .try_prepare_pin::<flexio::Pin2, { flexio::N }>(iomuxc.gpio_emc.p04)
+                .unwrap();
+            let pin3 = flexio1
+                .try_prepare_pin::<flexio::Pin3, { flexio::N }>(iomuxc.gpio_emc.p05)
+                .unwrap();
+            let pin4 = flexio1
+                .try_prepare_pin::<flexio::Pin4, { flexio::N }>(iomuxc.gpio_emc.p06)
+                .unwrap();
+            let pin5 = flexio1
+                .try_prepare_pin::<flexio::Pin5, { flexio::N }>(iomuxc.gpio_emc.p08)
+                .unwrap();
+            (flexio1, [pin2, pin3, pin4, pin5])
+        };
         Self {
             led,
             button,
@@ -245,6 +276,7 @@ impl Specifics {
             pwm,
             trng,
             tempmon,
+            flexio,
         }
     }
 }
@@ -259,6 +291,7 @@ pub(crate) const CLOCK_GATES: &[clock_gate::Locator] = &[
     clock_gate::lpspi::<SPI_INSTANCE>(),
     clock_gate::lpi2c::<{ I2C_INSTANCE }>(),
     clock_gate::flexpwm::<{ pwm::N }>(),
+    clock_gate::flexio::<{ flexio::N }>(),
 ];
 
 /// Configure board pins.
@@ -270,6 +303,7 @@ fn configure_pins(
         ref mut gpio_ad_b0,
         ref mut gpio_ad_b1,
         ref mut gpio_b0,
+        ref mut gpio_emc,
         ..
     }: &mut super::Pads,
 ) {
@@ -303,6 +337,25 @@ fn configure_pins(
     iomuxc::configure(&mut gpio_b0.p01, SPI_PIN_CONFIG);
     iomuxc::configure(&mut gpio_b0.p03, SPI_PIN_CONFIG);
     iomuxc::configure(&mut gpio_b0.p00, SPI_PIN_CONFIG);
+
+    let pin2: &mut flexio::Pin2 = &mut gpio_emc.p04;
+    let pin3: &mut flexio::Pin3 = &mut gpio_emc.p05;
+    let pin4: &mut flexio::Pin4 = &mut gpio_emc.p06;
+    let pin5: &mut flexio::Pin5 = &mut gpio_emc.p08;
+
+    const FLEXIO_DATA_CFG: iomuxc::Config = iomuxc::Config::zero()
+        .set_drive_strength(iomuxc::DriveStrength::R0_4)
+        .set_speed(iomuxc::Speed::Low)
+        .set_slew_rate(iomuxc::SlewRate::Slow)
+        .set_pull_keeper(None);
+
+    const FLEXIO_CS_CFG: iomuxc::Config =
+        FLEXIO_DATA_CFG.set_pull_keeper(Some(iomuxc::PullKeeper::Pullup22k));
+
+    iomuxc::configure(pin2, FLEXIO_DATA_CFG);
+    iomuxc::configure(pin3, FLEXIO_DATA_CFG);
+    iomuxc::configure(pin4, FLEXIO_CS_CFG);
+    iomuxc::configure(pin5, FLEXIO_CS_CFG);
 }
 
 #[cfg(target_arch = "arm")]

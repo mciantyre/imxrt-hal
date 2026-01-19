@@ -7,6 +7,7 @@ mod imxrt11xx {
 }
 
 use imxrt11xx::clock_tree;
+use imxrt_hal::flexio;
 
 #[cfg(target_arch = "arm")]
 use defmt_rtt as _;
@@ -36,6 +37,7 @@ const CLOCK_GATES: &[clock_gate::Locator] = &[
     clock_gate::flexpwm::<{ PWM_INSTANCE }>(),
     clock_gate::lpi2c::<{ I2C_INSTANCE }>(),
     clock_gate::snvs(),
+    clock_gate::flexio::<2>(),
 ];
 
 pub(crate) unsafe fn configure() {
@@ -54,6 +56,7 @@ fn prepare_clock_tree(ccm: &mut ral::ccm::CCM) {
     clock_tree::configure_lpuart::<{ CONSOLE_INSTANCE }>(RUN_MODE, ccm);
     clock_tree::configure_lpspi::<SPI_INSTANCE>(RUN_MODE, ccm);
     clock_tree::configure_lpi2c::<{ I2C_INSTANCE }>(RUN_MODE, ccm);
+    clock_tree::configure_flexio::<2>(RUN_MODE, ccm);
 }
 
 pub const PIT_FREQUENCY: u32 = clock_tree::bus_frequency(RUN_MODE);
@@ -154,6 +157,7 @@ pub struct Specifics {
     pub spi: Spi,
     pub pwm: pwm::Pwm,
     pub i2c: I2c,
+    pub flexio: (flexio::FlexIo, [flexio::Pin; 4]),
 }
 
 impl Specifics {
@@ -239,6 +243,19 @@ impl Specifics {
             )
         };
 
+        let flexio = {
+            let flexio2 = unsafe { ral::flexio::FLEXIO2::instance() };
+            let flexio2 = hal::flexio::FlexIo::new(flexio2);
+
+            // Muxed elsewhere.
+            let pin0 = hal::flexio::Pin::from_raw(0).unwrap();
+            let pin1 = hal::flexio::Pin::from_raw(1).unwrap();
+            let pin2 = hal::flexio::Pin::from_raw(2).unwrap();
+            let pin3 = hal::flexio::Pin::from_raw(3).unwrap();
+
+            (flexio2, [pin0, pin1, pin2, pin3])
+        };
+
         Self {
             led,
             console,
@@ -249,6 +266,7 @@ impl Specifics {
             spi,
             pwm,
             i2c,
+            flexio,
         }
     }
 }
@@ -272,6 +290,16 @@ fn configure_pins(iomuxc: &mut super::Pads) {
     ral::write_reg!(ral::iomuxc, iomuxc, SW_PAD_CTL_PAD_GPIO_AD_31, DSE: DSE_1_HIGH_DRIVER);
     ral::write_reg!(ral::iomuxc, iomuxc, SW_PAD_CTL_PAD_GPIO_AD_28, DSE: DSE_1_HIGH_DRIVER);
     ral::write_reg!(ral::iomuxc, iomuxc, SW_PAD_CTL_PAD_GPIO_AD_29, DSE: DSE_1_HIGH_DRIVER);
+
+    // FlexIO2 pins.
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_MUX_CTL_PAD_GPIO_AD_00, MUX_MODE: 8);
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_MUX_CTL_PAD_GPIO_AD_01, MUX_MODE: 8);
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_MUX_CTL_PAD_GPIO_AD_02, MUX_MODE: 8);
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_MUX_CTL_PAD_GPIO_AD_03, MUX_MODE: 8);
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_PAD_CTL_PAD_GPIO_AD_00, SRE: 0, DSE: 1, PUE: 0, ODE: 0);
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_PAD_CTL_PAD_GPIO_AD_01, SRE: 0, DSE: 1, PUE: 0, ODE: 0);
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_PAD_CTL_PAD_GPIO_AD_02, SRE: 0, DSE: 1, PUE: 0, ODE: 0);
+    ral::write_reg!(ral::iomuxc, iomuxc, SW_PAD_CTL_PAD_GPIO_AD_03, SRE: 0, DSE: 1, PUE: 0, ODE: 0);
 }
 
 pub mod interrupt {
