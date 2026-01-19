@@ -92,10 +92,10 @@ jobs:
         - --examples --features=board/imxrt1010evk,board/lcd1602,board/sai
         - --examples --features=board/imxrt1060evk,board/lcd1602
         # SPI examples (might break other examples)
-        - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --features=board/teensy4,board/spi
-        - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --features=board/imxrt1010evk,board/spi
-        - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --features=board/imxrt1060evk,board/spi
-        - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --features=board/imxrt1170evk-cm7,board/spi
+        - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --example=rtic_flexio_lpspi --features=board/teensy4,board/spi
+        - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --example=rtic_flexio_lpspi --features=board/imxrt1010evk,board/spi
+        - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --example=rtic_flexio_lpspi --features=board/imxrt1060evk,board/spi
+        - --example=rtic_spi_blocking --example=rtic_spi_controller --example=rtic_spi_peripheral --example=rtic_spi --example=async_dma_spi --example=rtic_flexio_lpspi --features=board/imxrt1170evk-cm7,board/spi
         # The i.MX RT 1170 EVK (CM7) target is WIP. The list below describes the working examples.
         - --features=board/imxrt1170evk-cm7,board/lcd1602 --example=hal_led
           --example=hal_gpio_input --example=rtic_gpio_input
@@ -104,6 +104,7 @@ jobs:
           --example=hal_pit --example=rtic_pit
           --example=hal_logging --example=rtic_logging
           --example=hal_clock_out
+          --example=hal_flexio_spi
           --example=hal_pwm --example=rtic_pwm
           --example=hal_i2c_mpu9250 --example=hal_i2c_lcd1602
           --example=hal_ocotp_fuse

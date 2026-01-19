@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+Add a FlexIO driver. The baseline driver supports 4 timer and shifter resources,
+no matter the chip. If your chip supports more resources, they become available
+when you activate a chip feature.
+
 ## 0.6.0 - 2026-07-26
 
 **BREAKING** Remove type states from the following drivers:

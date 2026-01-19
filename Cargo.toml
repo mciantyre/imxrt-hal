@@ -137,7 +137,8 @@ menu = "0.3.2"
 # Check out https://github.com/rust-embedded/cortex-m/issues/680
 # before removing this pinned dependency.
 cortex-m = "=0.7.7"
-rtic = { version = "2.0", features = ["thumbv7-backend"] }
+rtic = { version = "2.2", features = ["thumbv7-backend"] }
+rtic-sync = { version = "1.4" }
 log = "0.4"
 pin-utils = "0.1"
 usb-device = { version = "0.3", features = ["test-class-high-speed"] }
@@ -150,6 +151,10 @@ board = { path = "board" }
 
 [[example]]
 name = "async_dma_spi"
+required-features = ["board/spi"]
+
+[[example]]
+name = "rtic_flexio_lpspi"
 required-features = ["board/spi"]
 
 [[example]]

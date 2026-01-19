@@ -42,6 +42,7 @@ fn prepare_clock_tree(
     clock_tree::configure_uart(RUN_MODE, ccm);
     clock_tree::configure_sai(RUN_MODE, ccm);
     ccm::analog::pll3::restart(ccm_analog);
+    clock_tree::configure_flexio1(RUN_MODE, ccm);
     //clock output settings for the audio pll
     //24000000*(30 + 72/100)/1 = 737.28MHz
     //sai mclk settings then are
@@ -91,3 +92,6 @@ pub const LPI2C_CLK_FREQUENCY: u32 = clock_tree::lpi2c_frequency(RUN_MODE);
 
 pub const PWM_PRESCALER: hal::flexpwm::Prescaler = hal::flexpwm::Prescaler::Prescaler8;
 pub const PWM_FREQUENCY: u32 = clock_tree::ipg_frequency(RUN_MODE) / PWM_PRESCALER.divider();
+
+/// The FLEXIO1 clock frequency (Hz).
+pub const FLEXIO1_CLK_FREQUENCY: u32 = clock_tree::flexio1_frequency(RUN_MODE);
