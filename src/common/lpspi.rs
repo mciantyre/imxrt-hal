@@ -891,8 +891,6 @@ impl Lpspi {
         ))
         .inspect_err(|_| self.recover_from_error())?;
 
-        self.flush()?;
-
         Ok(())
     }
 
@@ -913,8 +911,6 @@ impl Lpspi {
         crate::spin_on(self.spin_transmit(tx, word_count)).inspect_err(|_| {
             self.recover_from_error();
         })?;
-
-        self.flush()?;
 
         Ok(())
     }
@@ -1314,6 +1310,7 @@ impl eh02::blocking::spi::Transfer<u8> for Lpspi {
 
     fn transfer<'a>(&mut self, words: &'a mut [u8]) -> Result<&'a [u8], Self::Error> {
         self.exchange(words)?;
+        self.flush()?;
         Ok(words)
     }
 }
@@ -1323,6 +1320,7 @@ impl eh02::blocking::spi::Transfer<u16> for Lpspi {
 
     fn transfer<'a>(&mut self, words: &'a mut [u16]) -> Result<&'a [u16], Self::Error> {
         self.exchange(words)?;
+        self.flush()?;
         Ok(words)
     }
 }
@@ -1332,6 +1330,7 @@ impl eh02::blocking::spi::Transfer<u32> for Lpspi {
 
     fn transfer<'a>(&mut self, words: &'a mut [u32]) -> Result<&'a [u32], Self::Error> {
         self.exchange(words)?;
+        self.flush()?;
         Ok(words)
     }
 }
@@ -1340,7 +1339,9 @@ impl eh02::blocking::spi::Write<u8> for Lpspi {
     type Error = LpspiError;
 
     fn write(&mut self, words: &[u8]) -> Result<(), Self::Error> {
-        self.write_no_read(words)
+        self.write_no_read(words)?;
+        self.flush()?;
+        Ok(())
     }
 }
 
@@ -1348,7 +1349,9 @@ impl eh02::blocking::spi::Write<u16> for Lpspi {
     type Error = LpspiError;
 
     fn write(&mut self, words: &[u16]) -> Result<(), Self::Error> {
-        self.write_no_read(words)
+        self.write_no_read(words)?;
+        self.flush()?;
+        Ok(())
     }
 }
 
@@ -1356,7 +1359,9 @@ impl eh02::blocking::spi::Write<u32> for Lpspi {
     type Error = LpspiError;
 
     fn write(&mut self, words: &[u32]) -> Result<(), Self::Error> {
-        self.write_no_read(words)
+        self.write_no_read(words)?;
+        self.flush()?;
+        Ok(())
     }
 }
 
