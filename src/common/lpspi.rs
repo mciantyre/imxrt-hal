@@ -475,6 +475,7 @@ pub struct Lpspi {
     bit_order: BitOrder,
     mode: Mode,
     ccr_cache: CcrCache,
+    pcs: Pcs,
 }
 
 /// Pins for a LPSPI device.
@@ -546,6 +547,7 @@ impl Lpspi {
             mode: MODE_0,
             // Once we issue a reset, below, these are zero.
             ccr_cache: CcrCache { dbt: 0, sckdiv: 0 },
+            pcs: Pcs::default(),
         };
 
         // Reset and disable
@@ -805,6 +807,16 @@ impl Lpspi {
         self.mode = mode;
     }
 
+    /// Return the peripheral chip select used in I/O.
+    pub fn pcs(&self) -> Pcs {
+        self.pcs
+    }
+
+    /// Set the peripheral chip select used in subsequent I/O.
+    pub fn set_pcs(&mut self, pcs: Pcs) {
+        self.pcs = pcs;
+    }
+
     /// Place a transaction definition into the transmit FIFO.
     ///
     /// Once this definition is popped from the transmit FIFO, this may
@@ -817,7 +829,6 @@ impl Lpspi {
             CPOL: if transaction.mode.polarity == Polarity::IdleHigh { CPOL_1 } else { CPOL_0 },
             CPHA: if transaction.mode.phase == Phase::CaptureOnSecondTransition { CPHA_1 } else { CPHA_0 },
             PRESCALE: PRESCALE_0,
-            PCS: PCS_0,
             WIDTH: WIDTH_0,
             LSBF: transaction.bit_order as u32,
             BYSW: transaction.byte_swap as u32,
@@ -1045,6 +1056,7 @@ impl Lpspi {
         let mut transaction = Transaction::new_words(words)?;
         transaction.bit_order = self.bit_order();
         transaction.mode = self.mode;
+        transaction.pcs = self.pcs;
         Ok(transaction)
     }
 }
