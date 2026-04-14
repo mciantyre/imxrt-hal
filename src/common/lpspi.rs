@@ -9,18 +9,26 @@
 //! sending data with [`enqueue_data`](Lpspi::enqueue_data). When using the transaction interface,
 //! you're responsible for serializing your data into `u32` SPI words.
 //!
-//! # Chip selects (CS) for SPI peripherals
+//! # Chip selects (CS) in hardware or software
 //!
-//! The iMXRT SPI peripherals have one or more peripheral-controlled chip selects (CS). Using
-//! the peripheral-controlled CS means that you do not need a GPIO to coordinate SPI operations.
+//! Each iMXRT LPSPI instances have one or more hardware-controlled chip selects (CS). Using
+//! the hardware-controlled CS means that you do not need a GPIO to coordinate SPI operations.
 //! Blocking full-duplex transfers and writes will observe an asserted chip select while data
 //! frames are exchanged / written.
 //!
-//! This driver generally assumes that you're using the peripheral-controlled chip select. If
-//! you instead want to manage chip select in software, you should be able to multiplex your own
-//! pins, then construct the driver [`without_pins`](Lpspi::without_pins).
+//! By default, this driver interface *does not* require a chip select pin, and you're expected
+//! to manage chip select *in software*. However, if you separately mux a pin to act as a chip
+//! select, the LPSPI manages it *in harware*.
 //!
-//! # Device support
+//! This behavior applies to both
+//!
+//! - the embedded-hal 0.2 blocking SPI trait implementations.
+//! - the embedded-hal 1.0 `SpiBus` implementation.
+//!
+//! If you're relying on hardware-controlled chip selects, use [`set_pcs`](Lpspi::set_pcs) to
+//! change the chip select used for subsequent transactions.
+//!
+//! # Peripheral support
 //!
 //! By default, the driver behaves as a SPI controller, coordinating I/O for other SPI peripherals.
 //! To behave like a peripheral, use [`set_peripheral_enable`](Disabled::set_peripheral_enable).
@@ -32,11 +40,14 @@
 //! Initialize an LPSPI controller with a 1MHz SCK. To understand how to configure the LPSPI
 //! peripheral clock, see the [`ccm::lpspi_clk`](crate::ccm::lpspi_clk) documentation.
 //!
+//! This example is expected to use a software-managed chip select, *not depicted*. To configure
+//! a hardware-managed chip select, you may choose to mux another pin.
+//!
 //! ```no_run
 //! use imxrt_hal as hal;
 //! use imxrt_ral as ral;
-//! # use eh02 as embedded_hal;
-//! use embedded_hal::blocking::spi::Transfer;
+//! # use eh1 as embedded_hal;
+//! use embedded_hal::spi::SpiBus;
 //! use hal::lpspi::{Lpspi, Pins, SamplePoint};
 //! use ral::lpspi::LPSPI4;
 //!
@@ -48,7 +59,13 @@
 //!     sdo: pads.gpio_b0.p02,
 //!     sdi: pads.gpio_b0.p01,
 //!     sck: pads.gpio_b0.p03,
+//!     // Observe there's no required chip select.
 //! };
+//!
+//! // To use a hardware-managed chip select, separately
+//! // prepare that pin, as shown here. Otherwise, you
+//! // will need to manage your chip select in software.
+//! hal::iomuxc::lpspi::prepare(&mut pads.gpio_b0.p00);
 //!
 //! let spi4 = unsafe { LPSPI4::instance() };
 //! let mut spi = Lpspi::with_pins(
@@ -63,7 +80,9 @@
 //! });
 //!
 //! let mut buffer: [u8; 3] = [1, 2, 3];
-//! spi.transfer(&mut buffer).ok()?;
+//! // TODO: assert your software-managed chip select.
+//! spi.transfer_in_place(&mut buffer).ok()?;
+//! // TODO: deassert your software-managed chip select.
 //! # Some(()) }();
 //! ```
 //!
@@ -872,6 +891,46 @@ impl Lpspi {
         }
     }
 
+    fn exchange_separate<W: Word>(
+        &mut self,
+        read: &mut [W],
+        write: &[W],
+    ) -> Result<(), LpspiError> {
+        let larger_buffer: &[W] = if read.len() > write.len() {
+            read
+        } else {
+            write
+        };
+
+        if larger_buffer.is_empty() {
+            return Ok(());
+        }
+
+        let transaction = self.bus_transaction(larger_buffer)?;
+
+        self.wait_for_transmit_fifo_space()?;
+        self.enqueue_transaction(&transaction);
+
+        let tx_words = word_count(write);
+        let rx_words = word_count(read);
+        let total_words = tx_words.max(rx_words);
+
+        let read_len = read.len();
+        let write_len = write.len();
+        let total_len = read_len.max(write_len);
+
+        let dummies = total_len.saturating_sub(write_len);
+        let discards = total_len.saturating_sub(read_len);
+
+        let tx = self.spin_transmit(TransmitBuffer::with_dummies(write, dummies), total_words);
+        let rx = self.spin_receive(ReceiveBuffer::with_discards(read, discards), total_words);
+
+        crate::spin_on(futures::future::try_join(tx, rx))
+            .inspect_err(|_| self.recover_from_error())?;
+
+        Ok(())
+    }
+
     fn exchange<W: Word>(&mut self, data: &mut [W]) -> Result<(), LpspiError> {
         if data.is_empty() {
             return Ok(());
@@ -909,6 +968,27 @@ impl Lpspi {
         let tx = TransmitBuffer::new(data);
 
         crate::spin_on(self.spin_transmit(tx, word_count)).inspect_err(|_| {
+            self.recover_from_error();
+        })?;
+
+        Ok(())
+    }
+
+    fn read_no_write<W: Word>(&mut self, data: &mut [W]) -> Result<(), LpspiError> {
+        if data.is_empty() {
+            return Ok(());
+        }
+
+        let mut transaction = self.bus_transaction(data)?;
+        transaction.transmit_data_mask = true;
+
+        self.wait_for_transmit_fifo_space()?;
+        self.enqueue_transaction(&transaction);
+
+        let word_count = word_count(data);
+        let rx = ReceiveBuffer::new(data);
+
+        crate::spin_on(self.spin_receive(rx, word_count)).inspect_err(|_| {
             self.recover_from_error();
         })?;
 
@@ -1369,8 +1449,63 @@ impl eh02::blocking::spi::Write<u32> for Lpspi {
 // going to write, we can't specify the frame size. There might be ways around
 // this by playing with CONTC and CONT bits, but we can evaluate that later.
 
+impl eh1::spi::Error for LpspiError {
+    fn kind(&self) -> eh1::spi::ErrorKind {
+        match self {
+            // Doesn't fit the FrameFormat requirements, since
+            // that sounds like a runtime check on the receive
+            // data, not a check on our transaction.
+            Self::FrameSize => eh1::spi::ErrorKind::Other,
+            Self::Fifo(Direction::Rx) => eh1::spi::ErrorKind::Overrun,
+            // No underrun error in the interface, so go with other.
+            Self::Fifo(Direction::Tx) => eh1::spi::ErrorKind::Other,
+        }
+    }
+}
+
+impl eh1::spi::ErrorType for Lpspi {
+    type Error = LpspiError;
+}
+
+macro_rules! spibus {
+    ($ty:ty) => {
+        impl eh1::spi::SpiBus<$ty> for Lpspi {
+            fn read(&mut self, words: &mut [$ty]) -> Result<(), Self::Error> {
+                self.read_no_write(words)?;
+                Ok(())
+            }
+
+            fn write(&mut self, words: &[$ty]) -> Result<(), Self::Error> {
+                self.write_no_read(words)?;
+                Ok(())
+            }
+
+            fn transfer(&mut self, read: &mut [$ty], write: &[$ty]) -> Result<(), Self::Error> {
+                self.exchange_separate(read, write)?;
+                Ok(())
+            }
+
+            fn transfer_in_place(&mut self, words: &mut [$ty]) -> Result<(), Self::Error> {
+                self.exchange(words)?;
+                Ok(())
+            }
+
+            fn flush(&mut self) -> Result<(), Self::Error> {
+                Lpspi::flush(self)?;
+                Ok(())
+            }
+        }
+    };
+}
+spibus!(u8);
+spibus!(u16);
+spibus!(u32);
+
 /// Describes SPI words that can participate in transactions.
 trait Word: Copy + Into<u32> + TryFrom<u32> {
+    /// The bitpattern for the dumy result.
+    const DUMMY: Self;
+
     /// Repeatedly call `provider` to produce yourself,
     /// then turn yourself into a LPSPI word.
     fn pack_word(bit_order: BitOrder, provider: impl FnMut() -> Option<Self>) -> u32;
@@ -1383,6 +1518,8 @@ trait Word: Copy + Into<u32> + TryFrom<u32> {
 }
 
 impl Word for u8 {
+    const DUMMY: u8 = u8::MAX;
+
     fn pack_word(bit_order: BitOrder, mut provider: impl FnMut() -> Option<Self>) -> u32 {
         let mut word = 0;
         match bit_order {
@@ -1418,6 +1555,8 @@ impl Word for u8 {
 }
 
 impl Word for u16 {
+    const DUMMY: u16 = u16::MAX;
+
     fn pack_word(bit_order: BitOrder, mut provider: impl FnMut() -> Option<Self>) -> u32 {
         let mut word = 0;
         match bit_order {
@@ -1455,6 +1594,7 @@ impl Word for u16 {
 }
 
 impl Word for u32 {
+    const DUMMY: u32 = u32::MAX;
     fn pack_word(_: BitOrder, mut provider: impl FnMut() -> Option<Self>) -> u32 {
         provider().unwrap_or(0)
     }
@@ -1483,6 +1623,10 @@ struct TransmitBuffer<'a, W> {
     ptr: *const W,
     /// At the end of the buffer.
     end: *const W,
+    /// Number of extra dummy elements,
+    /// of type `W`, to return once the
+    /// buffer is exhausted.
+    dummies: usize,
     _buffer: PhantomData<&'a [W]>,
 }
 
@@ -1495,6 +1639,13 @@ where
         unsafe { Self::from_raw(buffer.as_ptr(), buffer.len()) }
     }
 
+    fn with_dummies(buffer: &'a [W], dummies: usize) -> Self {
+        // Safety: pointer offset math meets expectations.
+        let mut this = unsafe { Self::from_raw(buffer.as_ptr(), buffer.len()) };
+        this.dummies = dummies;
+        this
+    }
+
     /// # Safety
     ///
     /// `ptr + len` must be in bounds, or at the end of the
@@ -1505,11 +1656,13 @@ where
             // Safety: caller upholds contract that ptr + len
             // must be in bounds, or at the end.
             end: unsafe { ptr.add(len) },
+            dummies: 0,
             _buffer: PhantomData,
         }
     }
 
-    /// Read the next element from the buffer.
+    /// Read the next element from the buffer, or a
+    /// dummy value.
     fn next_read(&mut self) -> Option<W> {
         // Safety: read the next word only if we're in bounds.
         unsafe {
@@ -1519,6 +1672,12 @@ where
                 word
             })
         }
+        .or_else(|| {
+            (self.dummies > 0).then(|| {
+                self.dummies = self.dummies.saturating_sub(1);
+                W::DUMMY
+            })
+        })
     }
 }
 
@@ -1537,6 +1696,9 @@ struct ReceiveBuffer<'a, W> {
     ptr: *mut W,
     /// At the end of the buffer.
     end: *const W,
+    /// Number of `W`s that are expected
+    /// to be discarded.
+    discards: usize,
     _buffer: PhantomData<&'a [W]>,
 }
 
@@ -1544,10 +1706,16 @@ impl<W> ReceiveBuffer<'_, W>
 where
     W: Word,
 {
-    #[cfg(test)] // TODO(mciantyre) remove once needed in non-test code.
     fn new(buffer: &mut [W]) -> Self {
         // Safety: pointer offset math meets expectations.
         unsafe { Self::from_raw(buffer.as_mut_ptr(), buffer.len()) }
+    }
+
+    fn with_discards(buffer: &mut [W], discards: usize) -> Self {
+        // Safety: pointer offset math meets expectations.
+        let mut this = unsafe { Self::from_raw(buffer.as_mut_ptr(), buffer.len()) };
+        this.discards = discards;
+        this
     }
 
     /// # Safety
@@ -1560,6 +1728,7 @@ where
             // Safety: caller upholds contract that ptr + len
             // must be in bounds, or at the end.
             end: unsafe { ptr.cast_const().add(len) },
+            discards: 0,
             _buffer: PhantomData,
         }
     }
@@ -1590,7 +1759,11 @@ where
     W: Word,
 {
     fn next_word(&mut self, bit_order: BitOrder, word: u32) {
-        let valid_bytes = self.array_len().min(size_of_val(&word));
+        let mut valid_bytes = self.array_len().min(size_of_val(&word));
+        while valid_bytes < size_of_val(&word) && self.discards != 0 {
+            valid_bytes = valid_bytes.saturating_add(size_of::<W>());
+            self.discards = self.discards.saturating_sub(1);
+        }
         W::unpack_word(word, bit_order, valid_bytes, |elem| self.next_write(elem));
     }
 }
@@ -1708,6 +1881,18 @@ mod tests {
         assert_eq!(tx.next_word(Lsb), 0xAD1CAC1D);
         assert_eq!(tx.next_word(Lsb), 0);
 
+        let mut tx = TransmitBuffer::with_dummies(&[0xDEADBEEFu32, 0xAD1CAC1D], 1);
+        assert_eq!(tx.next_word(Msb), 0xDEADBEEF);
+        assert_eq!(tx.next_word(Msb), 0xAD1CAC1D);
+        assert_eq!(tx.next_word(Msb), u32::MAX);
+        assert_eq!(tx.next_word(Msb), 0);
+
+        let mut tx = TransmitBuffer::with_dummies(&[0xDEADBEEFu32, 0xAD1CAC1D], 1);
+        assert_eq!(tx.next_word(Lsb), 0xDEADBEEF);
+        assert_eq!(tx.next_word(Lsb), 0xAD1CAC1D);
+        assert_eq!(tx.next_word(Lsb), u32::MAX);
+        assert_eq!(tx.next_word(Lsb), 0);
+
         //
         // u8
         //
@@ -1720,9 +1905,21 @@ mod tests {
         assert_eq!(tx.next_word(Msb), 0);
         assert_eq!(tx.next_word(Msb), 0);
 
+        let mut tx = TransmitBuffer::with_dummies(&[0xDEu8, 0xAD, 0xBE, 0xEF, 0xA5, 0x00, 0x1D], 1);
+        assert_eq!(tx.next_word(Msb), 0xDEADBEEF);
+        assert_eq!(tx.next_word(Msb), 0xA5001DFF);
+        assert_eq!(tx.next_word(Msb), 0);
+        assert_eq!(tx.next_word(Msb), 0);
+
         let mut tx = TransmitBuffer::new(&[0xDEu8, 0xAD, 0xBE, 0xEF, 0xA5, 0x00, 0x1D]);
         assert_eq!(tx.next_word(Lsb), 0xEFBEADDE);
         assert_eq!(tx.next_word(Lsb), 0x001D00A5);
+        assert_eq!(tx.next_word(Lsb), 0);
+        assert_eq!(tx.next_word(Lsb), 0);
+
+        let mut tx = TransmitBuffer::with_dummies(&[0xDEu8, 0xAD, 0xBE, 0xEF, 0xA5, 0x00, 0x1D], 1);
+        assert_eq!(tx.next_word(Lsb), 0xEFBEADDE);
+        assert_eq!(tx.next_word(Lsb), 0xFF1D00A5);
         assert_eq!(tx.next_word(Lsb), 0);
         assert_eq!(tx.next_word(Lsb), 0);
 
@@ -1741,9 +1938,19 @@ mod tests {
         assert_eq!(tx.next_word(Msb), 0);
         assert_eq!(tx.next_word(Msb), 0);
 
+        let mut tx = TransmitBuffer::with_dummies(&[0xDEu8, 0xAD, 0xBE], 2);
+        assert_eq!(tx.next_word(Msb), 0xDEADBEFF);
+        assert_eq!(tx.next_word(Msb), 0xFF);
+        assert_eq!(tx.next_word(Msb), 0);
+
         let mut tx = TransmitBuffer::new(&[0xDEu8, 0xAD, 0xBE]);
         assert_eq!(tx.next_word(Lsb), 0x00BEADDE);
         assert_eq!(tx.next_word(Lsb), 0);
+        assert_eq!(tx.next_word(Lsb), 0);
+
+        let mut tx = TransmitBuffer::with_dummies(&[0xDEu8, 0xAD, 0xBE], 2);
+        assert_eq!(tx.next_word(Lsb), 0xFFBEADDE);
+        assert_eq!(tx.next_word(Lsb), 0xFF);
         assert_eq!(tx.next_word(Lsb), 0);
 
         //
@@ -1758,10 +1965,22 @@ mod tests {
         assert_eq!(tx.next_word(Msb), 0);
         assert_eq!(tx.next_word(Msb), 0);
 
+        let mut tx = TransmitBuffer::with_dummies(&[0xDEADu16, 0xBEEF, 0xA5A5], 3);
+        assert_eq!(tx.next_word(Msb), 0xDEADBEEF);
+        assert_eq!(tx.next_word(Msb), 0xA5A5FFFF);
+        assert_eq!(tx.next_word(Msb), u32::MAX);
+        assert_eq!(tx.next_word(Msb), 0);
+
         let mut tx = TransmitBuffer::new(&[0xDEADu16, 0xBEEF, 0xA5A5]);
         assert_eq!(tx.next_word(Lsb), 0xBEEFDEAD);
         assert_eq!(tx.next_word(Lsb), 0x0000A5A5);
         assert_eq!(tx.next_word(Lsb), 0);
+        assert_eq!(tx.next_word(Lsb), 0);
+
+        let mut tx = TransmitBuffer::with_dummies(&[0xDEADu16, 0xBEEF, 0xA5A5], 3);
+        assert_eq!(tx.next_word(Lsb), 0xBEEFDEAD);
+        assert_eq!(tx.next_word(Lsb), 0xFFFFA5A5);
+        assert_eq!(tx.next_word(Lsb), u32::MAX);
         assert_eq!(tx.next_word(Lsb), 0);
 
         let mut tx = TransmitBuffer::new(&[0xDEADu16, 0xBEEF]);
@@ -1808,7 +2027,51 @@ mod tests {
         );
 
         let mut buffer = [0u8; 9];
+        let mut rx = ReceiveBuffer::with_discards(&mut buffer, 1);
+        rx.next_word(Msb, 0xDEADBEEF);
+        rx.next_word(Msb, 0xAD1CAC1D);
+        rx.next_word(Msb, 0x04030201);
+        rx.next_word(Msb, 0x55555555);
+        assert_eq!(
+            buffer,
+            [0xDE, 0xAD, 0xBE, 0xEF, 0xAD, 0x1C, 0xAC, 0x1D, 0x02]
+        );
+
+        let mut buffer = [0u8; 9];
+        let mut rx = ReceiveBuffer::with_discards(&mut buffer, 2);
+        rx.next_word(Msb, 0xDEADBEEF);
+        rx.next_word(Msb, 0xAD1CAC1D);
+        rx.next_word(Msb, 0x04030201);
+        rx.next_word(Msb, 0x55555555);
+        assert_eq!(
+            buffer,
+            [0xDE, 0xAD, 0xBE, 0xEF, 0xAD, 0x1C, 0xAC, 0x1D, 0x03]
+        );
+
+        let mut buffer = [0u8; 9];
         let mut rx = ReceiveBuffer::new(&mut buffer);
+        rx.next_word(Lsb, 0xDEADBEEF);
+        rx.next_word(Lsb, 0xAD1CAC1D);
+        rx.next_word(Lsb, 0x04030201);
+        rx.next_word(Lsb, 0x55555555);
+        assert_eq!(
+            buffer,
+            [0xEF, 0xBE, 0xAD, 0xDE, 0x1D, 0xAC, 0x1C, 0xAD, 0x01]
+        );
+
+        let mut buffer = [0u8; 9];
+        let mut rx = ReceiveBuffer::with_discards(&mut buffer, 1);
+        rx.next_word(Lsb, 0xDEADBEEF);
+        rx.next_word(Lsb, 0xAD1CAC1D);
+        rx.next_word(Lsb, 0x04030201);
+        rx.next_word(Lsb, 0x55555555);
+        assert_eq!(
+            buffer,
+            [0xEF, 0xBE, 0xAD, 0xDE, 0x1D, 0xAC, 0x1C, 0xAD, 0x01]
+        );
+
+        let mut buffer = [0u8; 9];
+        let mut rx = ReceiveBuffer::with_discards(&mut buffer, 2);
         rx.next_word(Lsb, 0xDEADBEEF);
         rx.next_word(Lsb, 0xAD1CAC1D);
         rx.next_word(Lsb, 0x04030201);
@@ -1831,7 +2094,23 @@ mod tests {
         assert_eq!(buffer, [0xDEAD, 0xBEEF, 0xAD1C, 0xAC1D, 0x0201]);
 
         let mut buffer = [0u16; 5];
+        let mut rx = ReceiveBuffer::with_discards(&mut buffer, 1);
+        rx.next_word(Msb, 0xDEADBEEF);
+        rx.next_word(Msb, 0xAD1CAC1D);
+        rx.next_word(Msb, 0x04030201);
+        rx.next_word(Msb, 0x55555555);
+        assert_eq!(buffer, [0xDEAD, 0xBEEF, 0xAD1C, 0xAC1D, 0x0403]);
+
+        let mut buffer = [0u16; 5];
         let mut rx = ReceiveBuffer::new(&mut buffer);
+        rx.next_word(Lsb, 0xDEADBEEF);
+        rx.next_word(Lsb, 0xAD1CAC1D);
+        rx.next_word(Lsb, 0x04030201);
+        rx.next_word(Lsb, 0x55555555);
+        assert_eq!(buffer, [0xBEEF, 0xDEAD, 0xAC1D, 0xAD1C, 0x0201]);
+
+        let mut buffer = [0u16; 5];
+        let mut rx = ReceiveBuffer::with_discards(&mut buffer, 1);
         rx.next_word(Lsb, 0xDEADBEEF);
         rx.next_word(Lsb, 0xAD1CAC1D);
         rx.next_word(Lsb, 0x04030201);

@@ -12,6 +12,7 @@
 #[rtic::app(device = board, peripherals = false)]
 mod app {
 
+    use eh1::spi::SpiBus;
     use imxrt_hal as hal;
     use imxrt_hal::pit::Channel;
 
@@ -56,7 +57,6 @@ mod app {
             // size and bit order, use this sequence to evaluate how
             // the driver packs your transfer elements.
             {
-                use eh02::blocking::spi::Write;
                 use hal::lpspi::BitOrder::{self, *};
 
                 const BIT_ORDERS: [BitOrder; 2] = [Msb, Lsb];
@@ -89,7 +89,6 @@ mod app {
             // Make sure concatenated elements look correct on the wire.
             // Make sure we can read those elements.
             {
-                use eh02::blocking::spi::Transfer;
                 use hal::lpspi::BitOrder;
 
                 macro_rules! transfer_test {
@@ -101,8 +100,61 @@ mod app {
 
                         spi.set_bit_order($bit_order);
                         let mut buffer = $arr;
-                        spi.transfer(&mut buffer).unwrap();
-                        defmt::assert_eq!(buffer, $arr, "Bit Order {}", bit_order_name);
+                        spi.transfer_in_place(&mut buffer).unwrap();
+                        defmt::assert_eq!(buffer, $arr, "In place, bit order {}", bit_order_name);
+
+                        let mut input = [0; $arr.len()];
+                        let output = $arr;
+
+                        spi.transfer(&mut input, &output).unwrap();
+                        defmt::assert_eq!(
+                            input,
+                            output,
+                            "Eq len transfer, bit order {}",
+                            bit_order_name
+                        );
+                        input.fill(0);
+
+                        spi.transfer(&mut input[1..], &output).unwrap();
+                        defmt::assert_eq!(
+                            &input[1..],
+                            &output[..$arr.len() - 1],
+                            "Rx len < Tx len, bit order {}",
+                            bit_order_name
+                        );
+                        input.fill(0);
+
+                        spi.transfer(&mut input, &output[..$arr.len() - 1]).unwrap();
+                        let mut expected = $arr;
+                        *expected.last_mut().unwrap() = u32::MAX as _;
+                        defmt::assert_eq!(
+                            input,
+                            expected,
+                            "Rx > Tx len, bit order {}",
+                            bit_order_name
+                        );
+                        input.fill(0);
+
+                        spi.transfer(&mut input[2..], &output).unwrap();
+                        defmt::assert_eq!(
+                            &input[2..],
+                            &output[..$arr.len() - 2],
+                            "Rx len << Tx len, bit order {}",
+                            bit_order_name
+                        );
+                        input.fill(0);
+
+                        spi.transfer(&mut input, &output[..$arr.len() - 2]).unwrap();
+                        let mut expected = $arr;
+                        expected[$arr.len() - 1] = u32::MAX as _;
+                        expected[$arr.len() - 2] = u32::MAX as _;
+                        defmt::assert_eq!(
+                            input,
+                            expected,
+                            "Rx >> Tx len, bit order {}",
+                            bit_order_name
+                        );
+                        input.fill(0);
                     };
                 }
 
@@ -138,8 +190,6 @@ mod app {
             }
 
             {
-                use eh02::blocking::spi::{Transfer, Write};
-
                 // Change me to test different Elem sizes, buffer sizes,
                 // bit patterns.
                 type Elem = u8;
@@ -149,7 +199,7 @@ mod app {
                 // Simple loopback transfer. Easy to find with your
                 // scope.
                 let mut buffer = BUFFER;
-                spi.transfer(&mut buffer).unwrap();
+                spi.transfer_in_place(&mut buffer).unwrap();
                 if buffer != BUFFER {
                     defmt::error!("Simple transfer buffer mismatch!");
                 }
@@ -163,7 +213,7 @@ mod app {
                 for idx in 0u32..16 {
                     buffer.fill(SENTINEL.rotate_right(idx));
                     let expected = buffer;
-                    spi.transfer(&mut buffer).unwrap();
+                    spi.transfer_in_place(&mut buffer).unwrap();
                     error |= buffer != expected;
                 }
                 if error {
@@ -179,9 +229,10 @@ mod app {
                 delay();
 
                 // Pipelined writes. Look for the burst of data
-                // on your scope. Internally, the writes will flush,
-                // so the delay between transfers should be about
-                // the same as they are for the transfers.
+                // on your scope. The embedded-hal 1.0 writes do
+                // not flush, so the delay between subsequent
+                // write operations should be smaller than bi-
+                // directional transfers
                 let mut buffer = BUFFER;
                 for idx in 0..16 {
                     buffer.fill(SENTINEL.rotate_right(idx));

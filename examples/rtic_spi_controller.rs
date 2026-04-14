@@ -57,7 +57,7 @@ mod app {
 
     #[idle(shared = [&errors], local = [spi])]
     fn idle(cx: idle::Context) -> ! {
-        use eh02::blocking::spi::*;
+        use eh1::spi::SpiBus;
         let idle::SharedResources { errors, .. } = cx.shared;
         let idle::LocalResources { spi, .. } = cx.local;
 
@@ -67,7 +67,7 @@ mod app {
             spi.write(&[snd]).unwrap();
 
             let mut sum = [0xFFu8; 1];
-            spi.transfer(&mut sum).unwrap();
+            spi.transfer_in_place(&mut sum).unwrap();
 
             errors.fetch_add(
                 u32::from(sum[0] != fst.wrapping_add(snd)),

@@ -55,6 +55,10 @@ Additionally, update third-party dependencies in the public API:
 Introduce a hardware chip select and SPI mode into each LPSPI transaction.
 Add an LPSPI configuration for hardware chip selects.
 
+The `Lpspi` provides an implementation of embedded-hal 1.0 `SpiBus`. You may use
+the `SpiBus` with either a software- or hardware-managed chip select, depending
+on how you choose to mux LPSPI pins.
+
 **BREAKING** The following peripherals are not available on the 1180. Therefore,
 they are no longer considered common. However, their APIs are unchanged, and they
 are still exposed when building with a chip feature.
