@@ -137,7 +137,7 @@
 //! an interrupt-driven USB logger. It uses `imxrt-hal` APIs to prepare the logger.
 //!
 //! ```no_run
-//! use imxrt_log::defmt; // <-- Change 'defmt' to 'log' to change the frontend.
+//! use imxrt_log::defmt as frontend; // <-- Change 'defmt' to 'log' to change the frontend.
 //! use imxrt_hal as hal;
 //! use imxrt_ral as ral;
 //!
@@ -167,7 +167,7 @@
 //!         usbphy: unsafe { ral::usbphy::USBPHY1::instance() },
 //!     };
 //!     // Initialize the logger, and ensure that it triggers interrupts.
-//!     let poller = defmt::usbd(usb_instances, imxrt_log::Interrupts::Enabled).ok()?;
+//!     let poller = frontend::usbd(usb_instances, imxrt_log::Interrupts::Enabled).ok()?;
 //!     Some(poller)
 //! }
 //!
