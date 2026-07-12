@@ -220,16 +220,24 @@ pub enum PcsPolarity {
 ///
 /// // Send one u32.
 /// let mut transaction
-///     = Transaction::new(8 * core::mem::size_of::<u32>() as u16);
+///     = Transaction::new(8 * core::mem::size_of::<u32>() as u16).unwrap();
+///
+/// // Transactions can be computed at compile time.
+/// const TRANS: Transaction = {
+///     let Ok(mut t) = Transaction::new(16) else { panic!(); };
+///     t.set_receive_data_mask(true);
+///     t.set_mode(hal::lpspi::MODE_2);
+///     t
+/// };
 /// ```
 ///
-/// Once constructed, manipulate the public members to change the
+/// Once constructed, use the `set_*` methods to change the
 /// configuration.
 ///
 /// # Continuous transactions
 ///
-/// The pseudo-code below shows how to set [`continuous`](Self::continuous) and
-/// [`continuing`](Self::continuing) to model a continuous transaction. Keep in
+/// The pseudo-code below shows how to set [`continuous`](Self::set_continuous) and
+/// [`continuing`](Self::set_continuing) to model a continuous transaction. Keep in
 /// mind the hardware limitations; see the [module-level docs](crate::lpspi#limitations) for
 /// details.
 ///
@@ -243,7 +251,7 @@ pub enum PcsPolarity {
 /// // exchanges one byte (eight bits) with a device.
 /// # || -> Result<(), hal::lpspi::LpspiError> {
 /// let mut transaction = Transaction::new(8)?;
-/// transaction.continuous = true;
+/// transaction.set_continuous(true);
 /// // Enqueue transaction with LPSPI...
 /// // Enqueue one byte with LPSPI...   <-- PCS asserts here.
 ///
@@ -251,66 +259,130 @@ pub enum PcsPolarity {
 /// for byte in buffer {
 ///     // Set 'continuing' to indicate that the next
 ///     // transaction continues the previous one...
-///     transaction.continuing = true;
+///     transaction.set_continuing(true);
 ///
 ///     // Enqueue transaction with LPSPI...
 ///     // Enqueue byte with LPSPI...
 /// }
 ///
-/// transaction.continuous = false;
-/// transaction.continuing = false;
+/// transaction.set_continuous(false);
+/// transaction.set_continuing(false);
 /// // Enqueue transaction with LPSPI... <-- PCS de-asserts here.
 /// # Ok(()) }().unwrap();
 /// ```
-pub struct Transaction {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct Transaction(u32);
+
+impl Transaction {
     /// Enable byte swap.
     ///
     /// When enabled (`true`), swap bytes within the `u32` word. This allows
     /// you to change the endianness of the 32-bit word transfer. The
     /// default is `false`.
-    pub byte_swap: bool,
+    #[inline(always)]
+    pub const fn set_byte_swap(&mut self, swap: bool) -> &mut Self {
+        self.0 &= !ral::lpspi::TCR::BYSW::mask;
+        self.0 |= (swap as u32) << ral::lpspi::TCR::BYSW::offset;
+        self
+    }
+
     /// Bit order.
     ///
     /// See [`BitOrder`] for details. The default is [`BitOrder::Msb`].
-    pub bit_order: BitOrder,
+    #[inline(always)]
+    pub const fn set_bit_order(&mut self, bit_order: BitOrder) -> &mut Self {
+        self.0 &= !ral::lpspi::TCR::LSBF::mask;
+        self.0 |= (bit_order as u32) << ral::lpspi::TCR::LSBF::offset;
+        self
+    }
+
     /// Mask the received data.
     ///
     /// If `true`, the peripheral discards received data. Use this
     /// when you only care about sending data. The default is `false`;
     /// the peripheral puts received data in the receive FIFO.
-    pub receive_data_mask: bool,
+    #[inline(always)]
+    pub const fn set_receive_data_mask(&mut self, rxmask: bool) -> &mut Self {
+        self.0 &= !ral::lpspi::TCR::RXMSK::mask;
+        self.0 |= (rxmask as u32) << ral::lpspi::TCR::RXMSK::offset;
+        self
+    }
+
     /// Mask the transmit data.
     ///
     /// If `true`, the peripheral doesn't send any data. Use this when
     /// you only care about receiving data. The default is `false`;
     /// the peripheral expects to send data using the transmit FIFO.
-    pub transmit_data_mask: bool,
+    #[inline(always)]
+    pub const fn set_transmit_data_mask(&mut self, txmask: bool) -> &mut Self {
+        self.0 &= !ral::lpspi::TCR::TXMSK::mask;
+        self.0 |= (txmask as u32) << ral::lpspi::TCR::TXMSK::offset;
+        self
+    }
+
     /// Indicates (`true`) the start of a continuous transfer.
     ///
     /// If set, the peripherals chip select will remain asserted after
     /// exchanging the frame. This allows you to enqueue new commands
     /// and data words within the same transaction. Those new commands
-    /// should have [`continuing`](Self::continuing) set to `true`.
+    /// should have [`continuing`](Self::set_continuing) set to `true`.
     ///
     /// The default is `false`; chip select de-asserts after exchanging
     /// the frame. To stop a continuous transfer, enqueue a new `Transaction`
     /// in which this flag, and `continuing`, is false.
-    pub continuous: bool,
+    #[inline(always)]
+    pub const fn set_continuous(&mut self, cont: bool) -> &mut Self {
+        self.0 &= !ral::lpspi::TCR::CONT::mask;
+        self.0 |= (cont as u32) << ral::lpspi::TCR::CONT::offset;
+        self
+    }
+
     /// Indicates (`true`) that this command belongs to a previous transaction.
     ///
     /// Set this to indicate that this new `Transaction` belongs to a previous
-    /// `Transaction`, one that had [`continuous`](Self::continuous) set.
+    /// `Transaction`, one that had [`continuous`](Self::set_continuous) set.
     /// The default value is `false`.
-    pub continuing: bool,
+    #[inline(always)]
+    pub const fn set_continuing(&mut self, contc: bool) -> &mut Self {
+        self.0 &= !ral::lpspi::TCR::CONTC::mask;
+        self.0 |= (contc as u32) << ral::lpspi::TCR::CONTC::offset;
+        self
+    }
+
     /// The SPI mode for the transaction.
     ///
     /// By default, this is [`MODE_0`].
-    pub mode: Mode,
+    #[inline(always)]
+    pub const fn set_mode(&mut self, mode: Mode) -> &mut Self {
+        self.0 &= !(ral::lpspi::TCR::CPOL::mask | ral::lpspi::TCR::CPHA::mask);
+
+        let cpol = if matches!(mode.polarity, Polarity::IdleHigh) {
+            ral::lpspi::TCR::CPOL::RW::CPOL_1
+        } else {
+            ral::lpspi::TCR::CPOL::RW::CPOL_0
+        };
+
+        let cpha = if matches!(mode.phase, Phase::CaptureOnSecondTransition) {
+            ral::lpspi::TCR::CPHA::RW::CPHA_1
+        } else {
+            ral::lpspi::TCR::CPHA::RW::CPHA_0
+        };
+
+        self.0 |= (cpol << ral::lpspi::TCR::CPOL::offset) | (cpha << ral::lpspi::TCR::CPHA::offset);
+
+        self
+    }
+
     /// Selects the hardware-managed peripheral chip select for the transaction.
     ///
     /// See [`Pcs`] for more information.
-    pub pcs: Pcs,
-    frame_size: u16,
+    #[inline(always)]
+    pub const fn set_pcs(&mut self, pcs: Pcs) -> &mut Self {
+        self.0 &= !ral::lpspi::TCR::PCS::mask;
+        self.0 |= (pcs as u32) << ral::lpspi::TCR::PCS::offset;
+        self
+    }
 }
 
 impl Transaction {
@@ -336,14 +408,14 @@ impl Transaction {
         }
     }
 
-    fn frame_size_valid(frame_size: u16) -> bool {
+    const fn frame_size_valid(frame_size: u16) -> bool {
         const MIN_FRAME_SIZE: u16 = 8;
         const MAX_FRAME_SIZE: u16 = 1 << 12;
         const WORD_SIZE: u16 = 32;
 
         let last_frame_size = frame_size % WORD_SIZE;
 
-        (MIN_FRAME_SIZE..=MAX_FRAME_SIZE).contains(&frame_size) && (1 != last_frame_size)
+        MIN_FRAME_SIZE <= frame_size && frame_size <= MAX_FRAME_SIZE && (1 != last_frame_size)
     }
 
     /// Define a transaction by specifying the frame size, in bits.
@@ -358,19 +430,9 @@ impl Transaction {
     /// - The minimum value for `frame_size` is 8; the implementation enforces this minimum
     ///   value.
     /// - The last 32-bit word in the frame is at least 2 bits long.
-    pub fn new(frame_size: u16) -> Result<Self, LpspiError> {
+    pub const fn new(frame_size: u16) -> Result<Self, LpspiError> {
         if Self::frame_size_valid(frame_size) {
-            Ok(Self {
-                byte_swap: false,
-                bit_order: Default::default(),
-                receive_data_mask: false,
-                transmit_data_mask: false,
-                frame_size: frame_size - 1,
-                continuing: false,
-                continuous: false,
-                mode: MODE_0,
-                pcs: Default::default(),
-            })
+            Ok(Self(frame_size as u32 - 1))
         } else {
             Err(LpspiError::FrameSize)
         }
@@ -842,22 +904,15 @@ impl Lpspi {
     /// affect, or abort, any ongoing transactions.
     ///
     /// You're responsible for making sure there's space in the transmit
-    /// FIFO for this transaction command.
-    pub fn enqueue_transaction(&self, transaction: &Transaction) {
-        ral::write_reg!(ral::lpspi, self.lpspi, TCR,
-            CPOL: if transaction.mode.polarity == Polarity::IdleHigh { CPOL_1 } else { CPOL_0 },
-            CPHA: if transaction.mode.phase == Phase::CaptureOnSecondTransition { CPHA_1 } else { CPHA_0 },
-            PRESCALE: PRESCALE_0,
-            WIDTH: WIDTH_0,
-            LSBF: transaction.bit_order as u32,
-            BYSW: transaction.byte_swap as u32,
-            RXMSK: transaction.receive_data_mask as u32,
-            TXMSK: transaction.transmit_data_mask as u32,
-            FRAMESZ: transaction.frame_size as u32,
-            CONT: transaction.continuous as u32,
-            CONTC: transaction.continuing as u32,
-            PCS: transaction.pcs as u32
-        );
+    /// FIFO for this transaction command; consider [`fifo_status`](Self::fifo_status).
+    ///
+    /// All `transaction` state takes priority over any software-managed
+    /// driver state. For example, if your `transaction` uses PCS3, that's
+    /// the PCS used in the next transaction, not whatever is returned by
+    /// [`pcs`](Self::pcs).
+    #[inline]
+    pub fn enqueue_transaction(&self, transaction: Transaction) {
+        ral::write_reg!(ral::lpspi, self.lpspi, TCR, transaction.0);
     }
 
     /// Wait for all ongoing transactions to be finished.
@@ -909,7 +964,7 @@ impl Lpspi {
         let transaction = self.bus_transaction(larger_buffer)?;
 
         self.wait_for_transmit_fifo_space()?;
-        self.enqueue_transaction(&transaction);
+        self.enqueue_transaction(transaction);
 
         let tx_words = word_count(write);
         let rx_words = word_count(read);
@@ -939,7 +994,7 @@ impl Lpspi {
         let transaction = self.bus_transaction(data)?;
 
         self.wait_for_transmit_fifo_space()?;
-        self.enqueue_transaction(&transaction);
+        self.enqueue_transaction(transaction);
 
         let word_count = word_count(data);
         let (tx, rx) = transfer_in_place(data);
@@ -959,10 +1014,10 @@ impl Lpspi {
         }
 
         let mut transaction = self.bus_transaction(data)?;
-        transaction.receive_data_mask = true;
+        transaction.set_receive_data_mask(true);
 
         self.wait_for_transmit_fifo_space()?;
-        self.enqueue_transaction(&transaction);
+        self.enqueue_transaction(transaction);
 
         let word_count = word_count(data);
         let tx = TransmitBuffer::new(data);
@@ -980,10 +1035,10 @@ impl Lpspi {
         }
 
         let mut transaction = self.bus_transaction(data)?;
-        transaction.transmit_data_mask = true;
+        transaction.set_transmit_data_mask(true);
 
         self.wait_for_transmit_fifo_space()?;
-        self.enqueue_transaction(&transaction);
+        self.enqueue_transaction(transaction);
 
         let word_count = word_count(data);
         let rx = ReceiveBuffer::new(data);
@@ -1130,9 +1185,9 @@ impl Lpspi {
     /// Produce a transaction that considers bus-managed software state.
     pub(crate) fn bus_transaction<W>(&self, words: &[W]) -> Result<Transaction, LpspiError> {
         let mut transaction = Transaction::new_words(words)?;
-        transaction.bit_order = self.bit_order();
-        transaction.mode = self.mode;
-        transaction.pcs = self.pcs;
+        transaction.set_bit_order(self.bit_order());
+        transaction.set_mode(self.mode);
+        transaction.set_pcs(self.pcs);
         Ok(transaction)
     }
 }

@@ -51,6 +51,8 @@ Additionally, update third-party dependencies in the public API:
 - `LpspiError::{Busy, NoData}` are removed as possible LPSPI errors.
 - There is no more `PCS0` type state associated with the LPSPI bus.
 - `FifoStatus` has public members for TX and RX FIFO capacities.
+- `Transaction` fields are no longer public. Use the `set_*` (`const`) methods
+  to set the fields on a `Transaction` object.
 
 Introduce a hardware chip select and SPI mode into each LPSPI transaction.
 Add an LPSPI configuration for hardware chip selects.

@@ -49,7 +49,7 @@ mod app {
             // Sending two u32s. Frame size is represented by bits.
             let transaction = Transaction::new(2 * 8 * core::mem::size_of::<u32>() as u16)
                 .expect("Transaction frame size is within bounds");
-            spi.enqueue_transaction(&transaction);
+            spi.enqueue_transaction(transaction);
 
             spi.enqueue_data(0xDEADBEEF);
             spi.enqueue_data(!0xDEADBEEF);

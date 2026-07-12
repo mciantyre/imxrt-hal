@@ -40,9 +40,9 @@ mod app {
         // Our protocol uses two separate transactions to
         // convey data.
         let mut transaction = Transaction::new(FRAME_SIZE).unwrap();
-        transaction.transmit_data_mask = true;
-        transaction.bit_order = BIT_ORDER;
-        spi.enqueue_transaction(&transaction);
+        transaction.set_transmit_data_mask(true);
+        transaction.set_bit_order(BIT_ORDER);
+        spi.enqueue_transaction(transaction);
 
         // React once we have both operands in the FIFO.
         spi.set_watermark(Direction::Rx, 1);
@@ -65,9 +65,9 @@ mod app {
         // Prepare a new transaction that only sends data (ignores any received
         // data).
         let mut transaction = Transaction::new(FRAME_SIZE).unwrap();
-        transaction.receive_data_mask = true;
-        transaction.bit_order = BIT_ORDER;
-        spi.enqueue_transaction(&transaction);
+        transaction.set_receive_data_mask(true);
+        transaction.set_bit_order(BIT_ORDER);
+        spi.enqueue_transaction(transaction);
 
         // Send the result.
         let sum: u8 = fst.wrapping_add(snd);
@@ -75,8 +75,8 @@ mod app {
 
         // Prepare to receive the next elements from the controller.
         let mut transaction = Transaction::new(FRAME_SIZE).unwrap();
-        transaction.transmit_data_mask = true;
-        transaction.bit_order = BIT_ORDER;
-        spi.enqueue_transaction(&transaction);
+        transaction.set_transmit_data_mask(true);
+        transaction.set_bit_order(BIT_ORDER);
+        spi.enqueue_transaction(transaction);
     }
 }
