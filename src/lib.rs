@@ -51,7 +51,6 @@
 //! | `"imxrt1064"`     | Enable features for the 1064 chips.                              |
 //! | `"imxrt1170"`     | Enable features for the 1170 chips.                              |
 //! | `"imxrt1180"`     | Enable features for the 1180 chips.                              |
-//! | `"rand_core"`     | Allows the TRNG to be used with the `rand` package.              |
 //!
 //! The APIs exposed by the various `"imxrt[...]"` features are chip specific.
 //! The HAL does not support building with more than one of these features at a

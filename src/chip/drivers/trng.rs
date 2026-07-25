@@ -8,24 +8,6 @@
 //! algorithm. Occasionally retrieving entropy from it won't necessarily need to block, as
 //! this driver retrieves 512 bits at a time.
 //!
-//! ## RngCore Support
-//!
-//! When the crate feature `rand_core` is enabled, the TRNG can be wrapped in a struct that
-//! implements [`rand_core`][rand_core]'s `RngCore` trait (via `into_rng()`). The [`rand`][rand]
-//! crate's `Rng` trait automatically implements high-level functions on top of `RngCore`.
-//!
-//! Note that only the `try_fill_bytes` function of `RngCore` allows reporting an error. The others
-//! will panic if the TRNG reports an error. Errors appear to be extremely rare in the default
-//! configuration (none were seen over 3GB of data), but it's possible they will be more common in
-//! certain situations, such as extreme temperatures or an inconsistent power supply. The non-public
-//! Security Reference Manual may have more information.
-//!
-//! If you intend to use the `RngCore` wrapper, you should set a larger retry count. The default
-//! retry count should be sufficient.
-//!
-//! [rand_core]: https://crates.io/crates/rand_core
-//! [rand]: https://crates.io/crates/rand
-//!
 //! # Example
 //!
 //! Enable the TRNG clock gate, wait to generate random data.
@@ -256,87 +238,6 @@ impl Trng {
             core::hint::spin_loop();
         }
         self.reg
-    }
-
-    /// Wrap the TRNG in a struct that implements `rand_core`'s `RngCore` trait.
-    #[cfg(feature = "rand_core")]
-    pub fn into_rng(self) -> RngCoreWrapper {
-        RngCoreWrapper(self)
-    }
-
-    #[cfg(feature = "rand_core")]
-    fn read(&mut self, buffer: &mut [u8]) -> Result<(), Error> {
-        let mut data = [0; 4];
-        let mut index = 4;
-        for b in buffer.iter_mut() {
-            if index == 4 {
-                data = nb::block!(self.next_u32())?.to_be_bytes();
-                index = 0;
-            }
-            *b = data[index];
-            index += 1;
-        }
-        Ok(())
-    }
-}
-
-/// Wrapper struct around [`TRNG`] that implements `RngCore`.
-#[cfg(feature = "rand_core")]
-pub struct RngCoreWrapper(Trng);
-
-#[cfg(feature = "rand_core")]
-impl RngCoreWrapper {
-    /// Deconstruct this wrapper and return the TRNG struct.
-    pub fn into_inner(self) -> Trng {
-        self.0
-    }
-}
-
-#[cfg(feature = "rand_core")]
-impl rand_core::RngCore for RngCoreWrapper {
-    /// Return the next random `u32`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the TRNG returns an error.
-    fn next_u32(&mut self) -> u32 {
-        let mut bytes = [0; 4];
-        self.fill_bytes(&mut bytes);
-        u32::from_be_bytes(bytes)
-    }
-
-    /// Return the next random `u64`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the TRNG returns an error.
-    fn next_u64(&mut self) -> u64 {
-        let mut bytes = [0; 8];
-        self.fill_bytes(&mut bytes);
-        u64::from_be_bytes(bytes)
-    }
-
-    /// Fill `dest` with random data.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the TRNG returns an error.
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        self.try_fill_bytes(dest).expect("TRNG returned an error")
-    }
-
-    /// Fill `dest` with random data.
-    ///
-    /// If an error occurs, the error's `code` is the bits of the [`ErrorFlags`] that this driver
-    /// would have reported, ORed with [`rand_core::Error::CUSTOM_START`]. Use
-    /// [`ErrorFlags::from_bits_truncate`] to convert the `code` to the struct.
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
-        // defer to Read implementation, converting error to rand_core's Error
-        self.0.read(dest).map_err(|e| {
-            let code = e.0.bits() | rand_core::Error::CUSTOM_START;
-            // Safety: Two highest bits always set.
-            unsafe { core::num::NonZeroU32::new_unchecked(code).into() }
-        })
     }
 }
 

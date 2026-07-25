@@ -27,6 +27,9 @@ Users should program directly against the `Pit` type.
 **BREAKING** There is no support for unproven embedded-hal 0.2 traits. The
 `eh02-unproven` feature is removed.
 
+**BREAKING** There is no support for `rand_core` traits. The `rand_core`
+feature is removed.
+
 **BREAKING** Remove the dependency on `imxrt-usbd` and the `usbd` module.
 Users should select their preferred versions of `imxrt-usbd`, `usb-device`,
 and other class packages.
