@@ -40,9 +40,9 @@ version = "0.2.6"
 package = "embedded-hal"
 version = "1.0.0"
 
-[dependencies.eio06]
+[dependencies.embedded-io]
 package = "embedded-io"
-version = "0.6.1"
+version = "0.7.1"
 
 # This is an indirect dependency through imxrt-ral;
 # imxrt-ral depends on `ral-registers 0.1.0`,

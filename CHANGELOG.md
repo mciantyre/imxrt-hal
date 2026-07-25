@@ -46,6 +46,7 @@ and other class packages.
 Additionally, update third-party dependencies in the public API:
 
 - `bitflags` 2.11
+- `embedded-io` 0.7
 
 **BREAKING** Remove deprecated APIs
 

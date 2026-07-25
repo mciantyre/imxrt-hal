@@ -936,29 +936,37 @@ impl eh02::blocking::serial::Write<u8> for Lpuart {
     }
 }
 
-impl eio06::Error for ReadFlags {
-    fn kind(&self) -> eio06::ErrorKind {
-        eio06::ErrorKind::Other
+impl core::fmt::Display for ReadFlags {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Read data error: {self:?}")
     }
 }
 
-impl eio06::ErrorType for Lpuart {
+impl core::error::Error for ReadFlags {}
+
+impl embedded_io::Error for ReadFlags {
+    fn kind(&self) -> embedded_io::ErrorKind {
+        embedded_io::ErrorKind::Other
+    }
+}
+
+impl embedded_io::ErrorType for Lpuart {
     type Error = ReadFlags;
 }
 
-impl eio06::WriteReady for Lpuart {
+impl embedded_io::WriteReady for Lpuart {
     fn write_ready(&mut self) -> Result<bool, Self::Error> {
         Ok(self.status().contains(Status::TRANSMIT_EMPTY))
     }
 }
 
-impl eio06::ReadReady for Lpuart {
+impl embedded_io::ReadReady for Lpuart {
     fn read_ready(&mut self) -> Result<bool, Self::Error> {
         Ok(self.status().contains(Status::RECEIVE_FULL))
     }
 }
 
-impl eio06::Write for Lpuart {
+impl embedded_io::Write for Lpuart {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         let mut num_written = 0;
         for word in buf {
@@ -987,7 +995,7 @@ impl eio06::Write for Lpuart {
     }
 }
 
-impl eio06::Read for Lpuart {
+impl embedded_io::Read for Lpuart {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         let mut num_read = 0;
         for word in buf {
