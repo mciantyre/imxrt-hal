@@ -51,7 +51,6 @@
 //! | `"imxrt1064"`     | Enable features for the 1064 chips.                              |
 //! | `"imxrt1170"`     | Enable features for the 1170 chips.                              |
 //! | `"imxrt1180"`     | Enable features for the 1180 chips.                              |
-//! | `"eh02-unproven"` | Enable implementations for embedded-hal 0.2 `"unproven"` traits. |
 //! | `"rand_core"`     | Allows the TRNG to be used with the `rand` package.              |
 //!
 //! The APIs exposed by the various `"imxrt[...]"` features are chip specific.
@@ -77,9 +76,6 @@
 //! version = # ...
 //! features = ["imxrt1062"] # Informs the HAL chip feature
 //! ```
-//!
-//! The `"eh02-unproven"` feature will not build without the corresponding
-//! `"unproven"` feature enabled in embedded-hal 0.2.
 
 #![no_std]
 #![warn(

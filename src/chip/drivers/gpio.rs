@@ -321,38 +321,6 @@ impl eh02::digital::v2::OutputPin for Output {
     }
 }
 
-#[cfg(feature = "eh02-unproven")]
-impl eh02::digital::v2::StatefulOutputPin for Output {
-    fn is_set_high(&self) -> Result<bool, Self::Error> {
-        Ok(self.is_set())
-    }
-    fn is_set_low(&self) -> Result<bool, Self::Error> {
-        Ok(!self.is_set())
-    }
-}
-
-#[cfg(feature = "eh02-unproven")]
-impl eh02::digital::v2::ToggleableOutputPin for Output {
-    type Error = core::convert::Infallible;
-
-    fn toggle(&mut self) -> Result<(), Self::Error> {
-        Output::toggle(self);
-        Ok(())
-    }
-}
-
-#[cfg(feature = "eh02-unproven")]
-impl eh02::digital::v2::InputPin for Input {
-    type Error = core::convert::Infallible;
-
-    fn is_high(&self) -> Result<bool, Self::Error> {
-        Ok(self.is_set())
-    }
-    fn is_low(&self) -> Result<bool, Self::Error> {
-        Ok(!self.is_set())
-    }
-}
-
 impl eh1::digital::ErrorType for Output {
     type Error = core::convert::Infallible;
 }

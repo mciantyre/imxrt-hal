@@ -88,14 +88,6 @@ imxrt1064 = ["imxrt-iomuxc/imxrt1060"]
 imxrt1170 = ["imxrt-iomuxc/imxrt1170"]
 imxrt1180 = ["imxrt-iomuxc/imxrt1180"]
 
-################
-# Extra features
-################
-
-# Enable implementations for EH02 "unproven" traits.
-# Requires the EH02 "unproven" feature.
-eh02-unproven = []
-
 [workspace]
 members = ["board", "logging"]
 

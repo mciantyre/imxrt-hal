@@ -24,7 +24,8 @@ To type check peripheral instances against pins, construct types using
 **BREAKING** The PIT driver no longer models channels as dedicated objects.
 Users should program directly against the `Pit` type.
 
-**BREAKING** The ADC driver no longer supports unproven embedded-hal 0.2 traits.
+**BREAKING** There is no support for unproven embedded-hal 0.2 traits. The
+`eh02-unproven` feature is removed.
 
 **BREAKING** Remove the dependency on `imxrt-usbd` and the `usbd` module.
 Users should select their preferred versions of `imxrt-usbd`, `usb-device`,
