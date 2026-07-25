@@ -30,6 +30,9 @@ Users should program directly against the `Pit` type.
 **BREAKING** There is no support for `rand_core` traits. The `rand_core`
 feature is removed.
 
+**BREAKING** The TRNG and TEMPMON drivers use `core::task::Poll` instead
+of `nb::Result`.
+
 **BREAKING** Remove the dependency on `imxrt-usbd` and the `usbd` module.
 Users should select their preferred versions of `imxrt-usbd`, `usb-device`,
 and other class packages.

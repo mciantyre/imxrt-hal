@@ -11,13 +11,14 @@
 //! Manually triggered read
 //!
 //! ```no_run
+//! use core::task::Poll;
 //! use imxrt_hal as hal;
 //! use imxrt_ral as ral;
 //!
 //! let inst = unsafe { ral::tempmon::TEMPMON::instance() };
 //! let mut temp_mon = hal::tempmon::TempMon::new(inst);
 //! loop {
-//!     if let Ok(temperature) = nb::block!(temp_mon.measure_temp()) {
+//!     if let Poll::Ready(Ok(temperature)) = temp_mon.measure_temp() {
 //!         // Temperature in mC (1°C = 1000°mC)
 //!     }
 //! }
@@ -36,7 +37,7 @@
 //! // Init temperature monitor with 8Hz measure freq
 //! // 0xffff = 2 Sec. Read more at `measure_freq()`
 //! let mut temp_mon = TempMon::with_measure_freq(inst, 0x1000);
-//! temp_mon.start();
+//! let _ = temp_mon.start();
 //!
 //! let mut last_temp = 0_i32;
 //! loop {
@@ -81,7 +82,7 @@
 //! // Start could fail if the module is not powered up
 //! if temp_mon.start().is_err() {
 //!     temp_mon.power_up();
-//!     temp_mon.start();
+//!     let _ = temp_mon.start();
 //! }
 //!
 //! // #[cortex_m_rt::interrupt]
@@ -92,6 +93,8 @@
 //!     // don't forget to enable it after the temperature is back to normal
 //! }
 //! ```
+
+use core::task::Poll;
 
 use crate::ral;
 
@@ -110,13 +113,14 @@ pub struct PowerDownError(());
 /// # Example
 ///
 /// ```no_run
+/// use core::task::Poll;
 /// use imxrt_hal as hal;
 /// use imxrt_ral as ral;
 ///
 /// let inst = unsafe { ral::tempmon::TEMPMON::instance() };
 /// let mut temp_mon = hal::tempmon::TempMon::new(inst);
 /// loop {
-///     if let Ok(_temperature) = nb::block!(temp_mon.measure_temp()) {
+///     if let Poll::Ready(Ok(_temperature)) = temp_mon.measure_temp() {
 ///         // _temperature in mC (1°C = 1000°mC)
 ///     }
 /// }
@@ -222,9 +226,9 @@ impl TempMon {
     /// The returning temperature in 1/1000 Celsius (°mC)
     ///
     /// Example: 25500°mC -> 25.5°C
-    pub fn measure_temp(&mut self) -> nb::Result<i32, PowerDownError> {
+    pub fn measure_temp(&mut self) -> Poll<Result<i32, PowerDownError>> {
         if !self.is_powered_up() {
-            Err(nb::Error::from(PowerDownError(())))
+            Poll::Ready(Err(PowerDownError(())))
         } else {
             // If no measurement is active, trigger new measurement
             let active = ral::read_reg!(ral::tempmon, self.base, TEMPSENSE0, MEASURE_TEMP == START);
@@ -236,13 +240,13 @@ impl TempMon {
             // i.MX Docs: This bit should be cleared by the sensor after the start of each measurement
             if ral::read_reg!(ral::tempmon, self.base, TEMPSENSE0, FINISHED == INVALID) {
                 // measure_temp could be triggered again without any effect
-                Err(nb::Error::WouldBlock)
+                Poll::Pending
             } else {
                 // Clear MEASURE_TEMP to trigger a new measurement at the next call
                 ral::write_reg!(ral::tempmon, self.base, TEMPSENSE0_CLR, MEASURE_TEMP: START);
 
                 let temp_cnt = ral::read_reg!(ral::tempmon, self.base, TEMPSENSE0, TEMP_CNT) as i32;
-                Ok(self.convert(temp_cnt))
+                Poll::Ready(Ok(self.convert(temp_cnt)))
             }
         }
     }
@@ -252,23 +256,23 @@ impl TempMon {
     /// The returning temperature in 1/1000 Celsius (°mC)
     ///
     /// Example: 25500°mC -> 25.5°C
-    pub fn get_temp(&self) -> nb::Result<i32, PowerDownError> {
+    pub fn get_temp(&self) -> Result<i32, PowerDownError> {
         if self.is_powered_up() {
             let temp_cnt = ral::read_reg!(ral::tempmon, self.base, TEMPSENSE0, TEMP_CNT) as i32;
             Ok(self.convert(temp_cnt))
         } else {
-            Err(nb::Error::from(PowerDownError(())))
+            Err(PowerDownError(()))
         }
     }
 
     /// Starts the measurement process. If the measurement frequency is zero, this
     /// results in a single conversion.
-    pub fn start(&mut self) -> nb::Result<(), PowerDownError> {
+    pub fn start(&mut self) -> Result<(), PowerDownError> {
         if self.is_powered_up() {
             ral::write_reg!(ral::tempmon, self.base, TEMPSENSE0_SET, MEASURE_TEMP: START);
             Ok(())
         } else {
-            Err(nb::Error::from(PowerDownError(())))
+            Err(PowerDownError(()))
         }
     }
 

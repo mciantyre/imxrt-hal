@@ -13,6 +13,7 @@
 //! Enable the TRNG clock gate, wait to generate random data.
 //!
 //! ```no_run
+//! use core::task::Poll;
 //! use imxrt_hal as hal;
 //! use imxrt_ral as ral;
 //!
@@ -26,11 +27,16 @@
 //!     hal::trng::RetryCount::default(),
 //! );
 //!
-//! let random_data = nb::block!(trng.next_u32()).ok()?;
+//! let random_data = loop {
+//!     if let Poll::Ready(result) = trng.next_u32() {
+//!         break result.ok()?;
+//!     }
+//! };
 //! # Some(()) }();
 //! ```
 
 use core::fmt;
+use core::task::{Poll, ready};
 
 use crate::ral::trng;
 use crate::ral::{modify_reg, read_reg, write_reg};
@@ -172,34 +178,34 @@ impl Trng {
 
     /// Return the next randomly-generated `u32`. May need to retrieve another block of random numbers.
     ///
-    /// Returns "would block" if we're not ready to read entropy; try again. See the module-level
+    /// Returns `Poll::Pending` if we're not ready to read entropy; try again. See the module-level
     /// example for how to block.
-    pub fn next_u32(&mut self) -> nb::Result<u32, Error> {
-        self.retrieve_if_needed()?;
-        let data = nb::Result::Ok(self.block[self.index]);
+    pub fn next_u32(&mut self) -> Poll<Result<u32, Error>> {
+        ready!(self.retrieve_if_needed())?;
+        let data = self.block[self.index];
         self.index += 1;
-        data
+        Poll::Ready(Ok(data))
     }
 
     /// Retrieve another block of random numbers if we've used them all up.
-    fn retrieve_if_needed(&mut self) -> nb::Result<(), Error> {
+    fn retrieve_if_needed(&mut self) -> Poll<Result<(), Error>> {
         if self.index >= self.block.len() {
-            self.retrieve()?;
+            ready!(self.retrieve())?;
             self.index = 0;
         }
-        Ok(())
+        Poll::Ready(Ok(()))
     }
 
     /// Retrieve another block of random numbers.
-    fn retrieve(&mut self) -> nb::Result<(), Error> {
+    fn retrieve(&mut self) -> Poll<Result<(), Error>> {
         let mctl = read_reg!(trng, self.reg, MCTL);
         if (mctl & trng::MCTL::ERR::mask) != 0 {
             let flags = self.get_error_flags();
             write_reg!(trng, self.reg, MCTL, mctl); // write reg back to clear error
-            return Err(nb::Error::Other(Error(flags)));
+            return Poll::Ready(Err(Error(flags)));
         }
         if (mctl & trng::MCTL::ENT_VAL::mask) == 0 {
-            return Err(nb::Error::WouldBlock); // not ready to read entropy
+            return Poll::Pending; // not ready to read entropy
         }
         for idx in 0..self.reg.ENT.len() {
             self.block[idx] = read_reg!(trng, self.reg, ENT[idx]);
@@ -212,7 +218,7 @@ impl Trng {
         //     had to do a dummy reading operation for anyone TRNG register
         //     to clear it firstly, then to read the RTENT0 to RTENT15 again
         // This appears unnecessary on the 1062? done anyway in case it's necessary for another chip
-        Ok(())
+        Poll::Ready(Ok(()))
     }
 
     /// Retrieve all known error flags.
