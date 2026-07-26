@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## 0.6.0 - 2026-07-26
+
 **BREAKING** Remove type states from the following drivers:
 
 - FlexPWM
@@ -51,7 +53,6 @@ Additionally, update third-party dependencies in the public API:
 **BREAKING** Remove deprecated APIs
 
 - `clko2::Selection::TracClk`
-- `timer::*PitChan`
 - `lpspi::Disabled::{set_mode, set_watermark}`
 
 **BREAKING** Change the LPSPI driver:
@@ -85,7 +86,7 @@ delay implementations.
 
 Introduce an `imxrt1180` feature to support the RT1180 series.
 
-Add a `defmt` feature targeting version 0.3. When enabled, select imxrt-hal
+Add a `defmt` feature targeting version 1.0. When enabled, select imxrt-hal
 types can be formatted with `defmt`.
 
 Export the SAI driver for 1170 MCUs. Fix SAI FPACK enumerated values. Ensure
