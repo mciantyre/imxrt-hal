@@ -134,6 +134,9 @@ codegen-units = 256
 imxrt-rt = { workspace = true }
 imxrt-usbd = { workspace = true }
 menu = "0.3.2"
+# Check out https://github.com/rust-embedded/cortex-m/issues/680
+# before removing this pinned dependency.
+cortex-m = "=0.7.7"
 rtic = { version = "2.0", features = ["thumbv7-backend"] }
 log = "0.4"
 pin-utils = "0.1"
