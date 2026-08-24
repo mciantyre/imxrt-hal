@@ -29,13 +29,11 @@ mod drivers {
     pub(crate) mod ocotp_11xx;
 }
 
-#[path = "drivers"]
 pub(crate) mod config {
     pub(crate) const DMA_CHANNEL_COUNT: usize = 32;
 
     pub use imxrt_iomuxc::imxrt1170 as pads;
 
-    #[path = "ccm_11xx"]
     pub(crate) mod ccm {
         pub(crate) mod clko {
             /// CLKO1 output clock selections.
